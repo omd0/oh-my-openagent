@@ -1,8 +1,10 @@
 import { describe, expect, it } from "bun:test"
 
 import type { ListedTask, TaskRecord, TaskStatus } from "@oh-my-opencode/senpi-task"
+import type { DagNodeId, DagRunId } from "@oh-my-opencode/senpi-task/dag"
 
-import type { CapturedUi } from "./runtime-context"
+import type { InlineInteraction, InlineWorker } from "./inline-interaction"
+import type { CapturedUi, WidgetFactory } from "./runtime-context"
 import {
   createTaskStatusUi,
   type StatusUiManager,
@@ -43,7 +45,13 @@ function fakeUi(): FakeUi {
     widgetCalls,
     notify: () => undefined,
     setStatus: (_key, text) => statusCalls.push(text),
-    setWidget: (_key, content, options) => widgetCalls.push({ content, placement: options?.placement }),
+    setWidget: (_key, content, options) => {
+      // The legacy seam only ever paints string rows. A factory reaching this
+      // fake is a wiring regression, not an empty row: fail loudly instead of
+      // recording a shape no legacy assertion understands.
+      if (content !== undefined && !Array.isArray(content)) throw new Error("legacy fakeUi received a widget factory")
+      widgetCalls.push({ content, placement: options?.placement })
+    },
     select: () => Promise.resolve(undefined),
     confirm: () => Promise.resolve(false),
   }
@@ -61,7 +69,7 @@ function fakeManager(records: readonly TaskRecord[]): StatusUiManager & { scopes
   }
 }
 
-function runtimeOf(ui: FakeUi | undefined, sessionId = "session-a", mode = "tui"): StatusUiRuntime {
+function runtimeOf(ui: CapturedUi | undefined, sessionId = "session-a", mode = "tui"): StatusUiRuntime {
   return {
     ui: () => ui,
     sessionId: () => sessionId,
@@ -253,5 +261,54 @@ describe("createTaskStatusUi.scheduleSync", () => {
     expect(cleared).toBe(1)
     expect(active.size).toBe(0)
     expect(ui.statusCalls).toHaveLength(0)
+  })
+})
+
+describe("createTaskStatusUi DAG ownership split", () => {
+  it("#given an ordinary row and a DAG-owned row #when syncing #then the focus menu takes only the ordinary worker", () => {
+    // given one ordinary background child and one owned by a DAG run
+    const solo = record({ task_id: "st_solo", status: "running" })
+    const owned = record({
+      task_id: "st_owned",
+      status: "running",
+      owner: { kind: "dag", runId: "dag_r" as DagRunId, nodeId: "n1" as DagNodeId, fingerprint: "f" },
+    })
+    const groups: Array<{ group: string; sessionId: string | undefined; workers: readonly InlineWorker[] }> = []
+    const interaction: InlineInteraction = {
+      attach: () => undefined,
+      setGroup: (group, sessionId, workers) => {
+        groups.push({ group, sessionId, workers: [...workers] })
+      },
+      bindInput: () => () => undefined,
+      decorate: (_worker, line) => line,
+      dispose: () => undefined,
+    }
+    const widgetContents: Array<string[] | WidgetFactory | undefined> = []
+    const ui: CapturedUi = {
+      notify: () => undefined,
+      setStatus: () => undefined,
+      setWidget: (_key, content) => {
+        widgetContents.push(content)
+      },
+      select: () => Promise.resolve(undefined),
+      confirm: () => Promise.resolve(false),
+    }
+    const manager: StatusUiManager = {
+      list: () => [solo, owned].map((entry) => ({ record: entry })),
+      wasBackground: () => true,
+      subscribeChild: () => () => undefined,
+    }
+    const statusUi = createTaskStatusUi({
+      manager,
+      runtime: runtimeOf(ui),
+      interaction,
+      now: () => Date.parse("2026-07-07T00:00:01.000Z"),
+    })
+
+    // when
+    statusUi.syncNow()
+
+    // then the DAG-owned worker stays with the DAG widget: no duplicate task row claims it
+    expect(groups).toEqual([{ group: "task", sessionId: "session-a", workers: [{ kind: "task", taskId: "st_solo" }] }])
   })
 })

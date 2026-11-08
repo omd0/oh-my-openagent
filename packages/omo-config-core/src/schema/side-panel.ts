@@ -23,6 +23,8 @@ const OmoSidePanelSectionsShape = {
   files: z.boolean(),
   /** Memory identity and reflection backlog. */
   memory: z.boolean(),
+  /** Dependency graph runs and node activity. */
+  dag: z.boolean(),
 }
 
 export const OmoSidePanelSectionsLayerSchema = z.object(OmoSidePanelSectionsShape).partial().strict()
@@ -36,6 +38,7 @@ export const OmoSidePanelSectionsSchema = OmoSidePanelSectionsLayerSchema.extend
   tools: z.boolean().default(true),
   files: z.boolean().default(true),
   memory: z.boolean().default(true),
+  dag: z.boolean().default(true),
 }).strict()
 
 const OmoSidePanelSettingsShape = {
@@ -73,6 +76,7 @@ export const OmoSidePanelSettingsSchema = OmoSidePanelSettingsLayerSchema.extend
     tools: true,
     files: true,
     memory: true,
+    dag: true,
   }),
 }).strict()
 

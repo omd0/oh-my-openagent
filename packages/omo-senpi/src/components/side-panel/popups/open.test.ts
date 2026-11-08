@@ -1,29 +1,38 @@
 import { describe, expect, test } from "bun:test"
 
-import type { PanelOverlayUi, PanelPopupFactory, PanelRow } from "../types"
+import type { PanelOverlayUi, PanelPopupFactory, PanelRow, PopupTui } from "../types"
+import type { PopupComponent } from "./text-popup"
 
-import { openPanelViewer } from "./open"
-
-type Listener = (data: string) => { consume?: boolean; data?: string } | undefined
+import { openPanelViewer, PLAIN_VIEWER_CHARS, PLAIN_VIEWER_ROWS, plainViewerText } from "./open"
 
 interface FakeUi extends PanelOverlayUi {
   readonly notices: string[]
-  readonly listeners: Listener[]
+  readonly listeners: Array<(data: string) => { consume?: boolean; data?: string } | undefined>
   readonly unsubscribed: number[]
+  readonly renders: () => number
+  readonly mounted: () => PopupComponent | undefined
   rendered(): readonly string[]
   close(): void
 }
 
 function fakeUi(options: { overlay?: boolean; rawInput?: boolean } = {}): FakeUi {
   const notices: string[] = []
-  const listeners: Listener[] = []
+  const listeners: FakeUi["listeners"] = []
   const unsubscribed: number[] = []
-  let component: { render(width: number): string[]; scrollBy(rows: number): void } | undefined
+  let renders = 0
+  let component: PopupComponent | undefined
   let finish: (() => void) | undefined
+  const tui: PopupTui = {
+    requestRender: () => {
+      renders += 1
+    },
+  }
   const ui: FakeUi = {
     notices,
     listeners,
     unsubscribed,
+    renders: () => renders,
+    mounted: () => component,
     notify(message) {
       notices.push(message)
     },
@@ -36,15 +45,15 @@ function fakeUi(options: { overlay?: boolean; rawInput?: boolean } = {}): FakeUi
             return new Promise<unknown>((resolve) => {
               const done = (): void => resolve(undefined)
               finish = done
-              const built = factory({ requestRender: () => {} }, undefined, undefined, done)
-              component = built as { render(width: number): string[]; scrollBy(rows: number): void }
+              const built = factory(tui, undefined, undefined, done)
+              component = built as PopupComponent
             })
           },
         }),
     ...(options.rawInput === false
       ? {}
       : {
-          onTerminalInput(handler: Listener) {
+          onTerminalInput(handler: FakeUi["listeners"][number]) {
             listeners.push(handler)
             const index = listeners.length - 1
             return () => unsubscribed.push(index)
@@ -58,58 +67,69 @@ const body = (count: number): readonly PanelRow[] =>
   Array.from({ length: count }, (_value, index) => ({ text: `line ${index + 1}` }))
 
 describe("openPanelViewer", () => {
-  test("#given a wheel report while the viewer is open #when it arrives #then the viewer scrolls and claims it", async () => {
+  test("#given an open viewer #when a native wheel arrives #then the viewport moves and the event is claimed", async () => {
     // given
     const ui = fakeUi()
     const opened = openPanelViewer(ui, "title", body(60))
     const before = ui.rendered().join("\n")
+    const viewer = ui.mounted()
+    if (viewer === undefined) throw new Error("the viewer never mounted through ui.custom")
 
     // when
-    const result = ui.listeners[0]?.("\u001b[<65;10;5M")
+    const result = viewer.handleMouse({ type: "wheel", wheelDelta: 3 })
 
-    // then the transcript behind must not scroll too, so the event is claimed
-    expect(result).toEqual({ consume: true })
+    // then the overlay consumes the wheel so the transcript behind never scrolls
+    expect(result).toEqual({ handled: true })
+    expect(ui.renders()).toBeGreaterThan(0)
     expect(ui.rendered().join("\n")).not.toBe(before)
 
     ui.close()
     await opened
   })
 
-  test("#given a keystroke #when it arrives #then it is passed on untouched", async () => {
+  test("#given an open viewer #when an unusable wheel arrives #then nothing is claimed and the view does not move", async () => {
     // given
     const ui = fakeUi()
     const opened = openPanelViewer(ui, "title", body(60))
-
-    // when / then
-    expect(ui.listeners[0]?.("q")).toBeUndefined()
-
-    ui.close()
-    await opened
-  })
-
-  test("#given an SGR button release #when it arrives #then it is passed through for host click completion", async () => {
-    // given
-    const ui = fakeUi()
-    const opened = openPanelViewer(ui, "title", body(60))
-
-    // when / then
-    expect(ui.listeners[0]?.("\u001b[<64;10;5m")).toBeUndefined()
-
-    ui.close()
-    await opened
-  })
-
-  test("#given the viewer is closed #when it resolves #then the wheel listener is released", async () => {
-    // given
-    const ui = fakeUi()
-    const opened = openPanelViewer(ui, "title", body(60))
+    const viewer = ui.mounted()
+    if (viewer === undefined) throw new Error("the viewer never mounted through ui.custom")
+    const before = ui.rendered().join("\n")
+    const paints = ui.renders()
 
     // when
-    ui.close()
-    await opened
+    const outcomes = [
+      viewer.handleMouse({ type: "wheel" }),
+      viewer.handleMouse({ type: "wheel", wheelDelta: Number.NaN }),
+      viewer.handleMouse({ type: "click", wheelDelta: 3 }),
+    ]
 
     // then
-    expect(ui.unsubscribed).toEqual([0])
+    expect(outcomes).toEqual([undefined, undefined, undefined])
+    expect(ui.rendered().join("\n")).toBe(before)
+    expect(ui.renders()).toBe(paints)
+
+    ui.close()
+    await opened
+  })
+
+  test("#given an open viewer #when keys arrive #then close keys resolve and other keys leave it open", async () => {
+    // given
+    const ui = fakeUi()
+    const opened = openPanelViewer(ui, "title", body(60))
+    const viewer = ui.mounted()
+    if (viewer === undefined) throw new Error("the viewer never mounted through ui.custom")
+
+    // when / then an ordinary keystroke leaves the viewer mounted
+    viewer.handleInput("z")
+    expect(ui.mounted()).toBe(viewer)
+
+    // when the close key arrives it resolves the overlay promise
+    viewer.handleInput("q")
+    await opened
+
+    // then no raw-input listener was ever registered on the native host path
+    expect(ui.listeners).toEqual([])
+    expect(ui.unsubscribed).toEqual([])
   })
 
   test("#given a host with no raw-input seam #when opened #then the viewer still works", async () => {
@@ -126,7 +146,7 @@ describe("openPanelViewer", () => {
     expect(ui.notices).toEqual([])
   })
 
-  test("#given a host with no overlay seam #when opened #then the rows arrive as one notification", async () => {
+  test("#given a host with no overlay seam #when opened #then the title heads the rows as one notification", async () => {
     // given
     const ui = fakeUi({ overlay: false })
 
@@ -134,7 +154,7 @@ describe("openPanelViewer", () => {
     await openPanelViewer(ui, "title", body(2))
 
     // then
-    expect(ui.notices).toEqual(["line 1\nline 2"])
+    expect(ui.notices).toEqual(["title\nline 1\nline 2"])
   })
 })
 
@@ -146,7 +166,36 @@ describe("openPanelViewer notice fallback", () => {
     // when
     await openPanelViewer(ui, "title", [{ text: "a\x1b[2Jb" }, { text: "c\x07d" }])
 
-    // then: one line per row survives, the controls do not
-    expect(ui.notices).toEqual(["a[2Jb\ncd"])
+    // then: one line per row survives, the controls do not, under the title
+    expect(ui.notices).toEqual(["title\na[2Jb\ncd"])
+  })
+
+  test("#given more rows than the notice is for #when the fallback text is built #then it stops at twenty rows and says what was left out", () => {
+    // given
+    const rows = body(PLAIN_VIEWER_ROWS + 5)
+
+    // when
+    const text = plainViewerText(rows)
+
+    // then
+    const lines = text.split("\n")
+    expect(lines.length).toBeLessThanOrEqual(PLAIN_VIEWER_ROWS + 1)
+    expect(lines[lines.length - 1]).toContain("more row")
+  })
+
+  test("#given a huge title and body #when opened without the overlay seam #then the whole notification stays within budget and names the omission", async () => {
+    // given a title longer than the notice keeps and a body larger than it is for
+    const ui = fakeUi({ overlay: false })
+    const title = "t".repeat(2000)
+    const rows: readonly PanelRow[] = Array.from({ length: 60 }, () => ({ text: "x".repeat(400) }))
+
+    // when
+    await openPanelViewer(ui, title, rows)
+
+    // then the title and the body share one budget, so a bounded title cannot push it over
+    expect(ui.notices).toHaveLength(1)
+    const notice = ui.notices[0] ?? ""
+    expect(notice.length).toBeLessThanOrEqual(PLAIN_VIEWER_CHARS)
+    expect(notice).toContain("more row")
   })
 })

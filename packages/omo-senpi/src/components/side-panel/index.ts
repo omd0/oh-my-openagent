@@ -3,7 +3,7 @@ import { resolveOmoSidePanelSettings, type OmoSidePanelSettings } from "@oh-my-o
 import type { ComponentContext, OmoSenpiComponent, SenpiExtensionAPI } from "../../extension/types"
 import { loadSenpiOmoConfig } from "../config-resolution"
 import type { PanelCommandContext } from "./commands"
-import { SIDE_PANEL_DIFF_COMMAND, SIDE_PANEL_FLAG, SIDE_PANEL_RUNTIME_FILE } from "./constants"
+import { SIDE_PANEL_DAG_COMMAND, SIDE_PANEL_DIFF_COMMAND, SIDE_PANEL_FLAG, SIDE_PANEL_RUNTIME_FILE } from "./constants"
 import type { SidePanelController, SidePanelRuntimeOptions } from "./runtime"
 
 declare const OMO_SENPI_BUNDLED: boolean
@@ -66,6 +66,13 @@ export function createSidePanelComponent(options: SidePanelComponentOptions = {}
           description: "Open the diff of a file the side panel lists as changed.",
           handler: async (_args: string, commandCtx: PanelCommandContext): Promise<void> => {
             if (controller !== undefined) return controller.runDiffCommand(commandCtx)
+            commandCtx.ui?.notify("The side panel is off in this session.", "info")
+          },
+        })
+        pi.registerCommand(SIDE_PANEL_DAG_COMMAND, {
+          description: "Open the graph of this session's DAG workflow runs, with node details.",
+          handler: async (_args: string, commandCtx: PanelCommandContext): Promise<void> => {
+            if (controller !== undefined) return controller.runDagCommand(commandCtx)
             commandCtx.ui?.notify("The side panel is off in this session.", "info")
           },
         })

@@ -9,13 +9,16 @@ export function registerWorkpoolTool(
   engine: TaskEngine,
   skills: SkillInvocationTracker,
   coordinator?: IdleInjectionCoordinator,
-): void {
+): () => void {
   const workpools = engine.manager.workpools
   if (workpools === undefined) throw new Error("Task engine does not expose workpool admission")
-  pi.registerTool({ ...createWorkpoolTool({
-    ...engine.taskToolDeps(sessionId => skills.stateFor(sessionId)),
-    workpools,
-  }), runs: "brain" })
+  const refresh = (): void => {
+    pi.registerTool({ ...createWorkpoolTool({
+      ...engine.taskToolDeps(sessionId => skills.stateFor(sessionId)),
+      workpools,
+    }), runs: "brain" })
+  }
+  refresh()
   workpools.bindAggregate({
     enqueue: (message, receipts) => {
       if (coordinator === undefined) {
@@ -39,4 +42,5 @@ export function registerWorkpoolTool(
     if (sessionId !== undefined) workpools.attach({ sessionId })
   })
   pi.on("session_shutdown", () => workpools.dispose())
+  return refresh
 }

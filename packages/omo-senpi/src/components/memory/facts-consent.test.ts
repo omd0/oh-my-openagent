@@ -39,7 +39,7 @@ async function recordedReceipt(after: readonly RawMessage[], quote: string): Pro
   await settle([...after, text("assistant", "Done.")])
   const pending = (await queue.listPending()).filter((entry: FactsQueueEntry) => entry.conversationId === conversation)
   expect(pending).toHaveLength(2)
-  const replyEntry = pending[1]
+  const replyEntry = pending.find((entry) => entry.range.end_message_id === `e${branch.length}`)
   if (replyEntry === undefined) throw new Error("no reply entry")
 
   expect(replyEntry.lead).toBeDefined()

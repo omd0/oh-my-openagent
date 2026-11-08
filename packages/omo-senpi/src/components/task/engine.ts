@@ -80,6 +80,8 @@ export interface TaskEngine {
   readonly categoryConfigGenerations: CategoryConfigGenerations
   readonly agents: Readonly<Record<string, AgentDefinition>>
   readonly omoConfig: OmoConfig
+  /** Replace only the live task-routing view; task settings and runners stay fixed. */
+  readonly setRoutingConfig: (config: OmoConfig) => void
   readonly settings: OmoTaskSettings
   // Where THIS session sits in the task tree (undefined = top-level). Every spawn entry point - task,
   // workpool, workflow, team - counts its children's depth from here so max_depth holds (#9036).
@@ -156,7 +158,8 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
     stateDir,
     settings,
   })
-  const agents = resolveTaskAgents(deps.omoConfig)
+  let routingConfig = deps.omoConfig
+  let agents = resolveTaskAgents(routingConfig)
 
   // The coordinator's async receipt closes the loop on batched delivery: a completion the coordinator
   // accepted but never delivered (failed flush, or a batch window dropped when /reload retires it)
@@ -234,19 +237,23 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
   // default change reaches the next spawn's message.
   const resolveDefaultRoute = () =>
     readSettingsDefaultRoute({ cwd: runtime.cwd(), agentDir: host.agentDir ?? resolveAgentHome({ env: deps.env ?? process.env }) })
-  const basePlanner = createGenerationObservingPlanner({
-    planner: createTaskChildPlanner(deps.omoConfig, agents, resolveRegistry, () => runtime.parentServiceTier(), resolveDefaultRoute),
-    omoConfig: deps.omoConfig,
-    resolveRegistry,
-    generations: categoryConfigGenerations,
-  })
-  const planner = createCategoryUnavailableWarningPlanner({
-    planner: basePlanner,
-    pi: deps.pi,
-    runtime,
-    omoConfig: deps.omoConfig,
-    settings,
-  })
+  const buildPlanner = (config: OmoConfig, resolvedAgents: Readonly<Record<string, AgentDefinition>>): ChildPlanner => {
+    const basePlanner = createGenerationObservingPlanner({
+      planner: createTaskChildPlanner(config, resolvedAgents, resolveRegistry, () => runtime.parentServiceTier(), resolveDefaultRoute),
+      omoConfig: config,
+      resolveRegistry,
+      generations: categoryConfigGenerations,
+    })
+    return createCategoryUnavailableWarningPlanner({
+      planner: basePlanner,
+      pi: deps.pi,
+      runtime,
+      omoConfig: config,
+      settings,
+    })
+  }
+  let activePlanner = buildPlanner(routingConfig, agents)
+  const planner: ChildPlanner = (spec) => activePlanner(spec)
   const manager = createTaskManager({
     onChildLiveness: (record, status) => {
       if (record.parent_session_id === runtime.sessionId()) notifyHostLiveness(deps.pi, deps.coordinator, record, status, () => runtime.parentState().kind === "streaming")
@@ -304,6 +311,12 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
     return ancestry === undefined ? undefined : { depth: ancestry.depth, rootSessionId: ancestry.rootSessionId ?? sessionId }
   }
 
+  const setRoutingConfig = (config: OmoConfig): void => {
+    routingConfig = config
+    agents = resolveTaskAgents(config)
+    activePlanner = buildPlanner(config, agents)
+  }
+
   return {
     runPause,
     admissionBarrier,
@@ -314,8 +327,9 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
     runtime,
     planner,
     categoryConfigGenerations,
-    agents,
-    omoConfig: deps.omoConfig,
+    get agents() { return agents },
+    get omoConfig() { return routingConfig },
+    setRoutingConfig,
     settings,
     ancestry,
     resolveAncestry,
@@ -326,7 +340,7 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
     notifyOwnedMemberLiveness,
     taskToolDeps: (resolveSkillInvocations) => ({
       manager,
-      omoConfig: deps.omoConfig,
+      omoConfig: routingConfig,
       agents,
       resolveAncestry,
       loadSkills,

@@ -211,7 +211,41 @@ public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint msg, UIntPtr wP
     return $edited
   }
 
-  function Write-OmoReceipt([string]$Channel, [string]$Version, [string]$Asset, [string]$BinPath) {
+  function Test-OmoOwnedPiAlias([string]$Path, [string]$Launcher) {
+    $receiptPath = ''
+    $receiptLauncher = ''
+    try {
+      $receipt = Get-Content -LiteralPath (Join-Path $HOME '.omo\install.json') -Raw | ConvertFrom-Json
+      $receiptPath = [string]$receipt.piPath
+      $receiptLauncher = [string]$receipt.binPath
+    } catch { return $false }
+    if ($receiptPath -cne $Path -or $receiptLauncher -cne $Launcher) { return $false }
+    $item = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+    $launcherItem = Get-Item -LiteralPath $Launcher -Force -ErrorAction SilentlyContinue
+    if ($null -eq $item -or $null -eq $launcherItem -or $item.PSIsContainer -or $launcherItem.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -or ($launcherItem.Attributes -band [IO.FileAttributes]::ReparsePoint)) { return $false }
+    try { return (Get-OmoSha256 $Path) -ceq (Get-OmoSha256 $Launcher) } catch { return $false }
+  }
+
+  function Install-OmoPiAlias([string]$Source, [string]$Path, [bool]$OwnedBeforeUpdate) {
+    foreach ($candidate in @($Path, (Join-Path (Split-Path -Parent $Path) 'pi.cmd'), (Join-Path (Split-Path -Parent $Path) 'pi.ps1'))) {
+      $item = Get-Item -LiteralPath $candidate -Force -ErrorAction SilentlyContinue
+      if ($null -eq $item) { continue }
+      if ($candidate -ceq $Path -and ($OwnedBeforeUpdate -or (Test-OmoOwnedPiAlias $Path $Source))) { continue }
+      Write-OmoSay "  Could not install pi alias: $candidate already exists and is not a verified OmO alias; it was left untouched."
+      return $false
+    }
+    Install-OmoBinary $Source $Path
+    return $true
+  }
+
+  function Show-OmoPiPathWinner([string]$Path) {
+    $found = @(Get-Command pi -All -CommandType Application, ExternalScript -ErrorAction SilentlyContinue)
+    if ($found.Count -gt 0 -and [string]$found[0].Path -ine $Path) {
+      Write-OmoSay "  Warning: $($found[0].Path) wins on PATH before the OmO pi alias at $Path; typing pi will run the earlier command. The existing command was not changed."
+    }
+  }
+
+  function Write-OmoReceipt([string]$Channel, [string]$Version, [string]$Asset, [string]$BinPath, [string]$PiPath) {
     $dir = Join-Path $HOME '.omo'
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
     $receipt = [ordered]@{
@@ -223,6 +257,7 @@ public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint msg, UIntPtr wP
       profileEdits = @()
       installedAt  = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", [Globalization.CultureInfo]::InvariantCulture)
     }
+    if ($PiPath) { $receipt.piPath = $PiPath }
     $tmp = Join-Path $dir "install.json.$([guid]::NewGuid().ToString('N'))"
     [IO.File]::WriteAllText($tmp, (ConvertTo-Json -InputObject $receipt) + "`n", (New-Object Text.UTF8Encoding $false))
     Move-Item -LiteralPath $tmp -Destination (Join-Path $dir 'install.json') -Force
@@ -299,6 +334,8 @@ public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint msg, UIntPtr wP
   if (-not $dir) { $dir = Join-Path $HOME '.local\bin' }
   $dir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($dir)
   $exe = Join-Path $dir 'omo.exe'
+  $piExe = Join-Path $dir 'pi.exe'
+  $priorPiOwned = Test-OmoOwnedPiAlias $piExe $exe
   $work = Join-Path ([IO.Path]::GetTempPath()) "omo-install.$([guid]::NewGuid().ToString('N'))"
   New-Item -ItemType Directory -Path $work | Out-Null
   try {
@@ -328,11 +365,18 @@ public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint msg, UIntPtr wP
       Install-OmoBinary $download $exe
     }
 
+    # Reuse the checksum-verified executable bytes; the release has no separate pi asset.
+    $piPath = ''
+    if (Install-OmoPiAlias $exe $piExe $priorPiOwned) {
+      $piPath = $piExe
+      Show-OmoPiPathWinner $piExe
+    }
+
     try { & $exe --version | Out-Host } catch { Stop-OmoInstall "$exe --version failed: $($_.Exception.Message)" }
     if ($LASTEXITCODE -ne 0) { Stop-OmoInstall "$exe --version failed (exit code $LASTEXITCODE)" }
 
     $pathEdited = Update-OmoPath $dir
-    Write-OmoReceipt $channel $version $asset $exe
+    Write-OmoReceipt $channel $version $asset $exe $piPath
     Show-OmoOtherInstalls $exe
     Write-OmoSay ''
     Write-OmoSay "omo $version is installed at $exe."

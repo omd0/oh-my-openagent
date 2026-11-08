@@ -26,6 +26,8 @@ powershell -ExecutionPolicy Bypass -c "irm https://get.omo.dev/install.ps1 | iex
 
 The script picks the build for your OS, CPU and C library, checks it against the release `SHA256SUMS`, and installs it at `~/.local/bin/omo` (`%USERPROFILE%\.local\bin\omo.exe` on Windows). On WSL, run the macOS/Linux command inside your Linux distribution; it installs the Linux build there. The script refuses to run as root or as Administrator, so run it as your own user.
 
+It also installs `pi` (`pi.exe` on Windows) as another name for the same OmO launcher when that path is available. Both commands use the same settings, sessions, model selection and arguments. This alias launches OmO Native, not a separate upstream Pi installation; it does not guarantee compatibility with every Pi extension.
+
 Binaries come from get.omo.dev, a CDN copy of each GitHub release. When get.omo.dev can't serve a file, the script downloads the same file from GitHub Releases and checks it the same way.
 
 ## Check the install
@@ -39,6 +41,17 @@ omo --version
 It prints the installed version. Then open a project, run `omo`, and describe the job.
 
 If the terminal says `omo: command not found` (or `omo is not recognized` on Windows), see [Fix your PATH](#fix-your-path).
+
+### Use the Pi command name
+
+```bash
+pi --version
+pi --help
+```
+
+These should show OmO, just like `omo --version` and `omo --help`. You can use `pi` in scripts that need to launch OmO with the same command-line arguments.
+
+The standalone and local installers leave an existing unrelated `pi` command untouched and report the collision. Another `pi` earlier on `PATH` can also win. Check `command -v pi` on macOS/Linux/WSL or `Get-Command pi -All` in PowerShell before removing or replacing anything. If you want to keep upstream Pi, continue using `omo` explicitly.
 
 ## Fix your PATH
 
@@ -109,6 +122,8 @@ Run the install command again. It replaces the binary when the channel has a new
 
 ## Uninstall
 
+Before deleting the install receipt, check whether its `piPath` names an OmO alias. Remove that alias only if it still belongs to this installation; keep an unrelated Pi executable or wrapper.
+
 macOS, Linux and WSL:
 
 ```bash
@@ -118,6 +133,8 @@ rm -rf ~/.omo/binary-runtime ~/.omo/install.json
 
 Then delete the `# >>> omo installer >>>` block from the shell file listed in [Fix your PATH](#fix-your-path).
 
+If the installer also created `~/.local/bin/pi`, remove that alias too after the ownership check above.
+
 Windows PowerShell:
 
 ```powershell
@@ -126,6 +143,8 @@ Remove-Item -Recurse "$HOME\.omo\binary-runtime", "$HOME\.omo\install.json"
 ```
 
 Then remove `%USERPROFILE%\.local\bin` from your User `PATH` if nothing else lives there.
+
+Also remove `%USERPROFILE%\.local\bin\pi.exe` if it is the alias this installer created. Keep any unrelated Pi executable or wrapper.
 
 `~/.omo` also holds your settings, sessions and memory. Delete the whole folder only if you want those gone too.
 
@@ -146,6 +165,8 @@ npm i -g omo-ai
 ```
 
 A package-manager install updates with `omo update` and uninstalls with `bun remove -g omo-ai` (or `npm uninstall -g omo-ai`). The unrelated `omo` package on npm belongs to someone else.
+
+`omo-ai` provides both `omo` and `pi`. The package manager owns these command links and removes them when you uninstall `omo-ai`. If a global Pi or Senpi package already owns `pi`, resolve that collision first rather than forcing an overwrite; see [install ordering](../reference/omo-ai-publishing.md#install-and-upgrade-order-eexist).
 
 ## Arch Linux: community AUR package
 

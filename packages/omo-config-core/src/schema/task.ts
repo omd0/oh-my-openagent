@@ -66,6 +66,7 @@ export const OmoTaskDagSettingsSchema = z.object({
 }).strict()
 
 export const OmoTaskSettingsSchema = z.object({
+  routing_profile: z.string().optional(),
   isolation: OmoTaskIsolationSchema.default(isolationDefaults),
   // "auto" defers the choice to the shared task daemon: `process` when this platform can host
   // children as daemon sessions and the ensured daemon advertises the session capabilities, else
@@ -135,6 +136,7 @@ export const OmoTaskWarningsLayerSchema = z.object({
 }).strict()
 
 export const OmoTaskSettingsLayerSchema = z.object({
+  routing_profile: z.string().optional(),
   isolation: OmoTaskIsolationLayerSchema.optional(),
   default_execution_mode: z.enum(["auto", "in-process", "process"]).optional(),
   process_runner: z.enum(["host", "child-process"]).optional(),

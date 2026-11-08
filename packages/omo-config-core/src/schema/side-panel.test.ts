@@ -23,6 +23,7 @@ describe("omo config side_panel section", () => {
       tools: true,
       files: true,
       memory: true,
+      dag: true,
     })
   })
 
@@ -177,5 +178,89 @@ describe("omo config side_panel section", () => {
     expect(settings.sections.files).toBe(false)
     expect(settings.sections.session).toBe(true)
     expect(settings.sections.usage).toBe(false)
+  })
+
+  test("#given sections.dag disabled in omo.json #when the full config is parsed #then dag is off while the other sections keep their defaults", () => {
+    // given
+    const config = { side_panel: { enabled: true, sections: { dag: false } } }
+
+    // when
+    const result = OmoConfigSchema.safeParse(config)
+
+    // then
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.side_panel?.sections.dag).toBe(false)
+    expect(result.data.side_panel?.sections.session).toBe(true)
+    expect(result.data.side_panel?.sections.usage).toBe(false)
+  })
+
+  test("#given sections.dag disabled in a partial settings layer #when resolved #then only dag turns off and every other section keeps its default", () => {
+    // given: a profile or harness layer hands over the opt-out before defaults apply
+    const config = { side_panel: { enabled: true, sections: { dag: false } } }
+    const defaults = resolveOmoSidePanelSettings({})
+
+    // when
+    const settings = resolveOmoSidePanelSettings(config)
+
+    // then
+    expect(settings.sections.dag).toBe(false)
+    expect(settings.sections.session).toBe(defaults.sections.session)
+    expect(settings.sections.agents).toBe(defaults.sections.agents)
+    expect(settings.sections.usage).toBe(defaults.sections.usage)
+  })
+
+  test("#given a sections layer that disables dag #when parsed as a layer #then the value survives and no sibling section gains a default", () => {
+    // given
+    const config = { side_panel: { sections: { dag: false } } }
+
+    // when
+    const result = OmoConfigLayerSchema.safeParse(config)
+
+    // then
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.side_panel?.sections).toEqual({ dag: false })
+  })
+
+  test("#given a non-boolean dag switch #when parsed #then the config is rejected", () => {
+    // given
+    const config = { side_panel: { sections: { dag: "off" } } }
+
+    // when
+    const result = OmoConfigSchema.safeParse(config)
+
+    // then
+    expect(result.success).toBe(false)
+  })
+
+  test("#given an empty side_panel section #when parsed #then clickable links default on", () => {
+    // given
+    const config = { side_panel: {} }
+
+    // when
+    const result = OmoConfigSchema.safeParse(config)
+
+    // then
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.side_panel?.clickable).toBe(true)
+  })
+
+  test("#given clickable links disabled #when parsed and resolved #then the opt-out survives while every other default holds", () => {
+    // given
+    const config = { side_panel: { enabled: true, clickable: false } }
+
+    // when
+    const parsed = OmoConfigSchema.safeParse(config)
+
+    // then
+    expect(parsed.success).toBe(true)
+    if (!parsed.success) return
+    expect(parsed.data.side_panel?.clickable).toBe(false)
+    const settings = resolveOmoSidePanelSettings(config)
+    expect(settings.clickable).toBe(false)
+    expect(settings.enabled).toBe(true)
+    expect(settings.sections.dag).toBe(true)
   })
 })

@@ -250,6 +250,75 @@ describe("side panel host surface", () => {
     expect(calls).toBe(0)
   })
 
+  test("#given an installed column #when the scroll entry is read #then it is a contained secondary scroller", () => {
+    // given
+    const ui = fakeUi()
+    const root = transcriptRoot()
+    const tui = fakeTui({ root })
+    const { surface } = surfaceFor(ui, context(ui))
+    surface.mount()
+    ui.factoryFor(SIDE_PANEL_ANCHOR_WIDGET_KEY)?.(tui, {})
+
+    // when
+    const node = stackNodeOf(tui.layoutRoot)
+    const column = node.entries[1]?.component as unknown as Record<symbol, unknown>
+    const scroll = (column[PI_TUI_LAYOUT_NODE] as () => unknown)() as {
+      type: string
+      state: { primary: boolean; overscroll: string; getContentWidth(width: number): number }
+    }
+
+    // then: the transcript keeps the host scroll, the panel scrolls inside its own viewport
+    expect(scroll.type).toBe("scroll")
+    expect(scroll.state.primary).toBe(false)
+    expect(scroll.state.overscroll).toBe("contain")
+    expect(scroll.state.getContentWidth(40)).toBe(40)
+  })
+
+  test("#given an installed column #when the root container is read #then the transcript stays first and the panel second", () => {
+    // given
+    const ui = fakeUi()
+    const root = transcriptRoot()
+    const tui = fakeTui({ root })
+    const { surface } = surfaceFor(ui, context(ui))
+    surface.mount()
+    ui.factoryFor(SIDE_PANEL_ANCHOR_WIDGET_KEY)?.(tui, {})
+
+    // when
+    const container = tui.layoutRoot as { children: readonly unknown[] }
+    const node = stackNodeOf(tui.layoutRoot)
+
+    // then: wrapping never reorders the transcript, and the engine sees the same order
+    expect(container.children[0]).toBe(root)
+    expect(node.entries[0]?.component).toBe(root)
+    expect(node.entries[0]?.grow).toBe(1)
+    expect(node.entries[1]?.grow).toBe(0)
+    expect(node.entries[1]?.shrink).toBe(0)
+    expect(node.gap).toBe(0)
+    expect(node.align).toBe("stretch")
+  })
+
+  test("#given scrolled content #when resetScroll runs #then the column returns to its top", () => {
+    // given
+    const ui = fakeUi()
+    const tui = fakeTui({ root: transcriptRoot() })
+    const { surface } = surfaceFor(ui, context(ui))
+    surface.mount()
+    ui.factoryFor(SIDE_PANEL_ANCHOR_WIDGET_KEY)?.(tui, {})
+    const column = stackNodeOf(tui.layoutRoot).entries[1]?.component as unknown as Record<symbol, unknown>
+    const scroll = (column[PI_TUI_LAYOUT_NODE] as () => unknown)() as {
+      state: { readonly scrollTop: number; updateLayout(c: number, v: number, r: () => void): void; scrollBy(n: number): number }
+    }
+    scroll.state.updateLayout(100, 10, () => {})
+    scroll.state.scrollBy(5)
+    expect(scroll.state.scrollTop).toBe(5)
+
+    // when
+    surface.resetScroll()
+
+    // then
+    expect(scroll.state.scrollTop).toBe(0)
+  })
+
   test("#given an installed column #when disposed #then the original root returns and widgets are cleared", () => {
     // given
     const ui = fakeUi()

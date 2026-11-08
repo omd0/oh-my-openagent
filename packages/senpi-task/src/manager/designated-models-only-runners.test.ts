@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs"
 import { afterEach, describe, expect, test } from "bun:test"
 
 import { loadSenpiBarrel } from "../lazy/senpi-barrel"
+import type { TaskRecord } from "../state"
 import { cleanupProjects } from "./__fixtures__/manager-fakes"
 import { runCategoryChild as runChild, runCategoryChildren, type DesignatedChildInput } from "./__fixtures__/designated-child"
 import { chainIds } from "./__fixtures__/model-chain-ids"
@@ -21,6 +22,12 @@ afterEach(async () => {
 
 const runCategoryChild = (input: DesignatedChildInput) => runChild(input, (adopted) => { world = adopted })
 const calledModels = (adopted: ModelChainWorld) => adopted.calls.map((call) => call.model)
+// A failing expectation must carry the record's own verdict: an error record with no provider call says
+// nothing about which models were designated, and the assertion diff alone never shows why it stopped.
+const recordFacts = (record: TaskRecord | undefined) =>
+  `status=${record?.status ?? "<missing>"} failure_kind=${record?.failure_kind ?? "<none>"} error_message=${record?.error_message ?? "<none>"}`
+const observed = (record: TaskRecord | undefined, adopted: ModelChainWorld) =>
+  `called=[${calledModels(adopted).join(", ")}] ${recordFacts(record)}`
 const modelId = (display: string) => display.slice(display.indexOf("/") + 1)
 const sha256 = (path: string) => createHash("sha256").update(readFileSync(path)).digest("hex")
 
@@ -39,10 +46,10 @@ describe.each(["in-process", "process", "host"] as const)("a %s child runs only 
     })
 
     // then
-    expect(calledModels(world)).toEqual([primary])
-    expect(record.status).toBe("error")
-    expect(record.failure_kind).toBe("model_chain_exhausted")
-    expect(record.error_message).toContain(`${primary}: usage limit (resets 3:20am)`)
+    expect(calledModels(world), observed(record, world)).toEqual([primary])
+    expect(record.status, observed(record, world)).toBe("error")
+    expect(record.failure_kind, observed(record, world)).toBe("model_chain_exhausted")
+    expect(record.error_message, observed(record, world)).toContain(`${primary}: usage limit (resets 3:20am)`)
   }, 60_000)
 
   test("#given a two-model chain and user chains that name other models #when both are refused #then only the two designated models ran, and the shipped default after the second never did", async () => {
@@ -56,10 +63,10 @@ describe.each(["in-process", "process", "host"] as const)("a %s child runs only 
     })
 
     // then
-    expect(new Set(calledModels(world))).toEqual(new Set([primary, opus55]))
-    expect(calledModels(world)).not.toContain(opus5)
-    expect(record.status).toBe("error")
-    expect(record.failure_kind).toBe("model_chain_exhausted")
+    expect(new Set(calledModels(world)), observed(record, world)).toEqual(new Set([primary, opus55]))
+    expect(calledModels(world), observed(record, world)).not.toContain(opus5)
+    expect(record.status, observed(record, world)).toBe("error")
+    expect(record.failure_kind, observed(record, world)).toBe("model_chain_exhausted")
   }, 60_000)
 
   test("#given a two-model chain whose first model is spent #when the second works #then the child completes on the second and calls nothing else", async () => {
@@ -73,8 +80,8 @@ describe.each(["in-process", "process", "host"] as const)("a %s child runs only 
     })
 
     // then
-    expect(record.status).toBe("completed")
-    expect(calledModels(world)).toEqual([primary, second])
+    expect(record.status, observed(record, world)).toBe("completed")
+    expect(calledModels(world), observed(record, world)).toEqual([primary, second])
   }, 60_000)
 })
 
@@ -90,11 +97,11 @@ describe.each(["in-process", "process", "host"] as const)("senpi's shipped defau
     const { record, world } = await runCategoryChild({ runner, category: "deep-high", chain: [opus55], scripts: { [opus55]: ["quota"] } })
 
     // then
-    expect(calledModels(world)).toEqual([opus55])
-    expect(calledModels(world)).not.toContain(opus5)
-    expect(record.status).toBe("error")
-    expect(record.failure_kind).toBe("model_chain_exhausted")
-    expect(record.error_message).toContain(`${opus55}: usage limit (resets 3:20am)`)
+    expect(calledModels(world), observed(record, world)).toEqual([opus55])
+    expect(calledModels(world), observed(record, world)).not.toContain(opus5)
+    expect(record.status, observed(record, world)).toBe("error")
+    expect(record.failure_kind, observed(record, world)).toBe("model_chain_exhausted")
+    expect(record.error_message, observed(record, world)).toContain(`${opus55}: usage limit (resets 3:20am)`)
   }, 60_000)
 })
 
@@ -115,14 +122,15 @@ describe("each child's designated chain on one socket host stays its own session
 
     // then
     const [a, b] = records
-    expect([...calledModels(oneHost)].sort()).toEqual([primary, second, opus55].sort())
-    expect(calledModels(oneHost)).not.toContain(opus5)
-    expect(a?.failure_kind).toBe("model_chain_exhausted")
-    expect(a?.error_message).toContain(`${second}: usage limit (resets 3:20am)`)
-    expect(a?.error_message).not.toContain(opus55)
-    expect(b?.failure_kind).toBe("model_chain_exhausted")
-    expect(b?.error_message).toContain(`${opus55}: usage limit (resets 3:20am)`)
-    expect(b?.error_message).not.toContain(second)
-    expect(sha256(oneHost.engineSettingsPath("host"))).toBe(sha256(oneHost.settingsPath))
+    const both = `A: ${observed(a, oneHost)} | B: ${observed(b, oneHost)}`
+    expect([...calledModels(oneHost)].sort(), both).toEqual([primary, second, opus55].sort())
+    expect(calledModels(oneHost), both).not.toContain(opus5)
+    expect(a?.failure_kind, both).toBe("model_chain_exhausted")
+    expect(a?.error_message, both).toContain(`${second}: usage limit (resets 3:20am)`)
+    expect(a?.error_message, both).not.toContain(opus55)
+    expect(b?.failure_kind, both).toBe("model_chain_exhausted")
+    expect(b?.error_message, both).toContain(`${opus55}: usage limit (resets 3:20am)`)
+    expect(b?.error_message, both).not.toContain(second)
+    expect(sha256(oneHost.engineSettingsPath("host")), both).toBe(sha256(oneHost.settingsPath))
   }, 90_000)
 })

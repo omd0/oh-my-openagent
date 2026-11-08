@@ -22,10 +22,12 @@ import {
 
 import { IdleInjectionCoordinator } from "../../extension/idle-injection-coordinator"
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
+import { Theme } from "../../senpi-test-runtime"
 import { createDagRuntime } from "./dag-runtime"
+import { readDagPanelFeed, subscribeDagPanelFeed } from "./dag-panel-feed"
 import { runDagTool } from "./dag-tool"
 import { composeTaskEngine, type TaskEngine, type TaskRunnerFactories } from "./engine"
-import type { CapturedUi } from "./runtime-context"
+import type { CapturedUi, WidgetFactory } from "./runtime-context"
 import { createTeamServiceTestModelRegistry } from "./team-service-test-model-registry"
 
 const cleanupRoots: string[] = []
@@ -203,7 +205,7 @@ async function pauseForShutdown(runtime: ReturnType<typeof createDagRuntime>): P
   await runtime.pauseForShutdown()
 }
 
-function fakeUi(widgetRows: string[][]): CapturedUi {
+function fakeUi(widgetRows: Array<string[] | WidgetFactory | undefined>): CapturedUi {
   return {
     notify: () => undefined,
     setStatus: () => undefined,
@@ -213,6 +215,77 @@ function fakeUi(widgetRows: string[][]): CapturedUi {
     select: async () => undefined,
     confirm: async () => false,
   }
+}
+
+// The live widget paints a themed factory the host invokes; tracking lines stay
+// string arrays. Paint every captured write the way the host does and strip the
+// theme escapes so assertions read behavior, not color codes.
+const PAINT_FG_COLORS = {
+  accent: "#000000",
+  bashMode: "#000000",
+  border: "#000000",
+  borderAccent: "#000000",
+  borderMuted: "#000000",
+  customMessageLabel: "#000000",
+  customMessageText: "#000000",
+  dim: "#000000",
+  error: "#000000",
+  mdCode: "#000000",
+  mdCodeBlock: "#000000",
+  mdCodeBlockBorder: "#000000",
+  mdHeading: "#000000",
+  mdHr: "#000000",
+  mdLink: "#000000",
+  mdLinkUrl: "#000000",
+  mdListBullet: "#000000",
+  mdQuote: "#000000",
+  mdQuoteBorder: "#000000",
+  muted: "#000000",
+  success: "#000000",
+  syntaxComment: "#000000",
+  syntaxFunction: "#000000",
+  syntaxKeyword: "#000000",
+  syntaxNumber: "#000000",
+  syntaxOperator: "#000000",
+  syntaxPunctuation: "#000000",
+  syntaxString: "#000000",
+  syntaxType: "#000000",
+  syntaxVariable: "#000000",
+  text: "#000000",
+  thinkingHigh: "#000000",
+  thinkingLow: "#000000",
+  thinkingMax: "#000000",
+  thinkingMedium: "#000000",
+  thinkingMinimal: "#000000",
+  thinkingOff: "#000000",
+  thinkingText: "#000000",
+  thinkingXhigh: "#000000",
+  toolDiffAdded: "#000000",
+  toolDiffContext: "#000000",
+  toolDiffRemoved: "#000000",
+  toolOutput: "#000000",
+  toolTitle: "#000000",
+  userMessageText: "#000000",
+  warning: "#000000",
+} as const satisfies ConstructorParameters<typeof Theme>[0]
+const PAINT_BG_COLORS = {
+  customMessageBg: "#000000",
+  selectedBg: "#000000",
+  toolErrorBg: "#000000",
+  toolPendingBg: "#000000",
+  toolSuccessBg: "#000000",
+  userMessageBg: "#000000",
+} as const satisfies ConstructorParameters<typeof Theme>[1]
+const PAINT_THEME = new Theme(PAINT_FG_COLORS, PAINT_BG_COLORS, "truecolor")
+
+function paintedWidgetText(entries: ReadonlyArray<string[] | WidgetFactory | undefined>): string[][] {
+  return entries.map((entry) => {
+    if (entry === undefined) return []
+    if (Array.isArray(entry)) return entry
+    return entry(undefined, PAINT_THEME).render(200).map((line) =>
+      line.replace(/\[[0-9;?]*[A-Za-z]/gu, "").replace(/\][^\u0007]*(?:\u0007|\\)/gu, ""),
+    )
+  })
 }
 
 describe("assembled DAG runtime", () => {
@@ -240,7 +313,7 @@ describe("assembled DAG runtime", () => {
       sharedParentTools: () => [],
       runnerFactories: { inProcess: () => runner, process: () => runner },
     })
-    const widgetRows: string[][] = []
+    const widgetRows: Array<string[] | WidgetFactory | undefined> = []
     engine.runtime.captureFrom({
       modelRegistry: createTeamServiceTestModelRegistry(),
       mode: "tui",
@@ -287,7 +360,7 @@ describe("assembled DAG runtime", () => {
         }),
       },
     ])
-    expect(widgetRows).toEqual(expect.arrayContaining([
+    expect(paintedWidgetText(widgetRows)).toEqual(expect.arrayContaining([
       expect.arrayContaining([expect.stringContaining("read src/live.ts")]),
     ]))
     runner.handles[0]?.settle("done")
@@ -486,7 +559,7 @@ describe("assembled DAG runtime", () => {
       runnerFactories,
       coordinator,
     })
-    const widgetRows: string[][] = []
+    const widgetRows: Array<string[] | WidgetFactory | undefined> = []
     engine.runtime.captureFrom({ modelRegistry: createTeamServiceTestModelRegistry(),
       mode: "tui",
       ui: fakeUi(widgetRows),
@@ -542,7 +615,9 @@ describe("assembled DAG runtime", () => {
     expect(persisted.nodes.every((node) => node.resultArtifact !== undefined)).toBe(true)
     expect(rpcEvents.some((event) => event.name === "omo.dag.event")).toBe(true)
     expect(rpcEvents.some((event) => event.name === "omo.dag.updated")).toBe(true)
-    expect(widgetRows.some((rows) => rows.some((row) => row.includes("assembled two node")))).toBe(true)
+    const painted = paintedWidgetText(widgetRows)
+    expect(painted.some((rows) => rows.some((row) => row.includes("/root/plan")))).toBe(true)
+    expect(painted.some((rows) => rows.some((row) => row.includes("/root/build")))).toBe(true)
     expect(wakeDeliveries).toHaveLength(1)
     expect(wakeDeliveries[0]).toContain("DAG \"assembled two node\" completed")
     expect(rpcHandlers.has("omo.dag.snapshot")).toBe(true)
@@ -1366,5 +1441,256 @@ describe("assembled DAG runtime control verbs", () => {
     expect(result.nodes.build).toEqual(expect.objectContaining({ state: "completed", output: "build amended" }))
     expect(runtime.manager.record(runId, sessionId).nodes.find((node) => String(node.id) === "plan")?.taskId).toBe(planTaskId)
     runtime.dispose()
+  }, { timeout: 20_000 })
+})
+
+describe("assembled DAG runtime panel feed", () => {
+  function panelFixture(name: string) {
+    const cwd = fs.mkdtempSync(join(tmpdir(), `omo-senpi-dag-panel-${name}-`))
+    cleanupRoots.push(cwd)
+    const runner = new ScriptedRunner()
+    const sessionId = `session-panel-${name}`
+    const attached = deferred<void>()
+    const pi = Object.assign(new FakeExtensionAPI(), {
+      rpc: {
+        emit: (channel: string, data: unknown) => {
+          if (channel !== "omo.dag.event") return
+          if (typeof data === "object" && data !== null && "type" in data && data.type === "dag.node.task-attached") attached.resolve()
+        },
+        handle: () => undefined,
+      },
+    })
+    const engine = trackedEngine({
+      pi,
+      omoConfig: loadOmoConfig({ cwd }).config,
+      cwd,
+      sharedParentTools: () => [],
+      runnerFactories: { inProcess: () => runner, process: () => runner },
+    })
+    engine.runtime.captureFrom({
+      modelRegistry: createTeamServiceTestModelRegistry(),
+      sessionManager: { getSessionId: () => sessionId },
+    })
+    const runtime = createDagRuntime({
+      pi,
+      engine,
+      logger: logger(),
+      bridgeTimers: new ManualTimers(),
+      statusUiTimers: new ManualTimers(),
+    })
+    return { cwd, runner, engine, runtime, sessionId, attached: attached.promise }
+  }
+
+  async function startSingleNodeRun(
+    runtime: ReturnType<typeof createDagRuntime>,
+    runner: ScriptedRunner,
+    sessionId: string,
+    key: string,
+  ): Promise<DagRunId> {
+    const started = await runtime.manager.start({
+      parentSessionId: sessionId,
+      rootSessionId: sessionId,
+      definition: {
+        key,
+        name: key,
+        nodes: [{ id: "active", prompt: "work", subagent_type: "explore", model: "omo-mock/mock-1" }],
+      },
+    })
+    await within(runner.whenStarted(1), STEP_BUDGET_MS, "runner.whenStarted(1)")
+    return started.snapshot.runId
+  }
+
+  test("#given a reader subscribed before the runtime attached #when the run is published, mutated and reports activity #then the reader sees each change and the detach releases it", async () => {
+    // given a panel reader that races the session start, as the side panel does
+    const { runner, runtime, sessionId, attached } = panelFixture("live")
+    let notifications = 0
+    const unsubscribe = subscribeDagPanelFeed(sessionId, () => {
+      notifications += 1
+    })
+    expect(readDagPanelFeed(sessionId)).toBeUndefined()
+
+    // when
+    await runtime.attach()
+    const published = notifications
+    const feed = readDagPanelFeed(sessionId)
+    const runId = await startSingleNodeRun(runtime, runner, sessionId, "panel-live")
+    const afterMutation = notifications
+    await within(attached, STEP_BUDGET_MS, "dag.node.task-attached")
+    expect(runner.handles[0]?.listenerCount()).toBeGreaterThan(0)
+    runner.handles[0]?.emit({ type: "tool_execution_start", toolName: "read", args: { path: "src/live.ts" } })
+
+    // then - the claim reached the pending reader, and the run itself is served
+    expect(feed).toBeDefined()
+    expect(published).toBeGreaterThan(0)
+    expect(feed?.runs().map((snapshot) => snapshot.runId)).toEqual([runId])
+    // the store mutation and the node activity each notified the reader
+    expect(afterMutation).toBeGreaterThan(published)
+    expect(notifications).toBeGreaterThan(afterMutation)
+    expect(feed?.activity(runId, "active")).toContain("read src/live.ts")
+
+    // when
+    const beforeDetach = notifications
+    runtime.detach()
+
+    // then
+    expect(notifications).toBeGreaterThan(beforeDetach)
+    expect(readDagPanelFeed(sessionId)).toBeUndefined()
+
+    runner.handles[0]?.settle("done")
+    unsubscribe()
+    runtime.dispose()
+  }, { timeout: 20_000 })
+
+  test("#given a foreign session's run in the same store #when this session's runtime publishes #then the feed serves only this session's run", async () => {
+    // given
+    const { cwd, runner, runtime, sessionId } = panelFixture("scope")
+    const foreignSessionId = "session-panel-scope-foreign"
+    const foreignRunId = "run-panel-scope-foreign" as DagRunId
+    await seedPendingRun(cwd, foreignRunId, foreignSessionId)
+
+    // when
+    await runtime.attach()
+    const runId = await startSingleNodeRun(runtime, runner, sessionId, "panel-scope")
+    const feed = readDagPanelFeed(sessionId)
+
+    // then
+    expect(readDagPanelFeed(foreignSessionId)).toBeUndefined()
+    expect(feed?.runs().map((snapshot) => snapshot.runId)).toEqual([runId])
+    expect(feed?.runs().map((snapshot) => snapshot.runId)).not.toContain(foreignRunId)
+    expect(feed?.activity(foreignRunId, "resume")).toBeUndefined()
+
+    runner.handles[0]?.settle("done")
+    await within(runtime.wait(runId, sessionId))
+    runtime.dispose()
+  }, { timeout: 20_000 })
+
+  test("#given a published run whose state moved on #when the manager's read paths fail #then the feed keeps the last good snapshot instead of reporting the run gone", async () => {
+    // given
+    const { runner, runtime, sessionId } = panelFixture("retained")
+    await runtime.attach()
+    const runId = await startSingleNodeRun(runtime, runner, sessionId, "panel-retained")
+    const feed = readDagPanelFeed(sessionId)
+    const published = feed?.runs() ?? []
+    expect(published.map((snapshot) => snapshot.runId)).toEqual([runId])
+    const retained = published[0]
+    if (retained === undefined) throw new Error("expected the published run in the feed")
+    expect(retained.status).not.toBe("completed")
+    runner.handles[0]?.settle("done")
+    await within(runtime.wait(runId, sessionId))
+    // the durable run moved on, so a fresh read would differ from what the feed retained
+    expect(runtime.manager.snapshot(runId, sessionId).status).toBe("completed")
+
+    // when - the run listing fails
+    const listing = spyOn(runtime.manager, "list").mockImplementation(() => {
+      throw new Error("run listing unavailable")
+    })
+    const fromListingFailure = feed?.runs() ?? []
+
+    // then - the last good snapshot, not the run's newer durable state and not an empty run set
+    expect(fromListingFailure).toEqual([retained])
+    expect(fromListingFailure[0]?.status).toBe(retained.status)
+    listing.mockRestore()
+
+    // when - the listing works but the snapshot read fails
+    const snapshot = spyOn(runtime.manager, "snapshot").mockImplementation(() => {
+      throw new Error("snapshot unavailable")
+    })
+    const fromSnapshotFailure = feed?.runs() ?? []
+
+    // then
+    expect(fromSnapshotFailure).toEqual([retained])
+    expect(fromSnapshotFailure[0]?.status).toBe(retained.status)
+    snapshot.mockRestore()
+
+    // when - a genuine successful read reports no runs left
+    const emptied = spyOn(runtime.manager, "list").mockImplementation(() => [])
+    expect(feed?.runs()).toEqual([])
+
+    // then - a later failure does not resurrect the cleared snapshots
+    emptied.mockImplementation(() => {
+      throw new Error("run listing unavailable again")
+    })
+    expect(feed?.runs()).toEqual([])
+    emptied.mockRestore()
+
+    runtime.dispose()
+  }, { timeout: 20_000 })
+
+  test("#given snapshots retained before a release #when the runtime re-attaches to the same session #then a failing read serves an empty feed, not the previous ones", async () => {
+    // given
+    const { runner, runtime, sessionId } = panelFixture("release")
+    await runtime.attach()
+    const runId = await startSingleNodeRun(runtime, runner, sessionId, "panel-release")
+    const retainedFeed = readDagPanelFeed(sessionId)
+    expect(retainedFeed?.runs().map((snapshot) => snapshot.runId)).toEqual([runId])
+
+    // when
+    runtime.detach()
+    await runtime.attach()
+    const reattached = readDagPanelFeed(sessionId)
+    const listing = spyOn(runtime.manager, "list").mockImplementation(() => {
+      throw new Error("run listing unavailable")
+    })
+
+    // then
+    expect(reattached).toBeDefined()
+    expect(reattached).not.toBe(retainedFeed)
+    expect(reattached?.runs()).toEqual([])
+    listing.mockRestore()
+
+    runner.handles[0]?.settle("done")
+    runtime.dispose()
+  }, { timeout: 20_000 })
+
+  test("#given an attached runtime #when the session pauses for shutdown and a later attach is disposed #then both paths release the session's feed", async () => {
+    // given
+    const { runtime, sessionId } = panelFixture("teardown")
+    await runtime.attach()
+    expect(readDagPanelFeed(sessionId)).toBeDefined()
+
+    // when
+    await pauseForShutdown(runtime)
+
+    // then
+    expect(readDagPanelFeed(sessionId)).toBeUndefined()
+
+    // when
+    await runtime.attach()
+    expect(readDagPanelFeed(sessionId)).toBeDefined()
+    runtime.dispose()
+
+    // then
+    expect(readDagPanelFeed(sessionId)).toBeUndefined()
+  }, { timeout: 20_000 })
+
+  test("#given a runtime attached to one session with a live run #when the engine switches sessions and re-attaches #then the old feed is released and the new feed is scoped to the new session", async () => {
+    // given
+    const { runner, engine, runtime, sessionId: oldSessionId } = panelFixture("switch")
+    const newSessionId = "session-panel-switch-next"
+    await runtime.attach()
+    const runId = await startSingleNodeRun(runtime, runner, oldSessionId, "panel-switch")
+    const oldFeed = readDagPanelFeed(oldSessionId)
+    expect(oldFeed?.runs().map((snapshot) => snapshot.runId)).toEqual([runId])
+
+    // when
+    runtime.detach()
+    engine.runtime.captureFrom({
+      modelRegistry: createTeamServiceTestModelRegistry(),
+      sessionManager: { getSessionId: () => newSessionId },
+    })
+    await runtime.attach()
+
+    // then - the previous session no longer serves a feed, and the new session's
+    // feed is present but scoped to its own (empty) run set
+    expect(readDagPanelFeed(oldSessionId)).toBeUndefined()
+    const newFeed = readDagPanelFeed(newSessionId)
+    expect(newFeed).toBeDefined()
+    expect(newFeed).not.toBe(oldFeed)
+    expect(newFeed?.runs()).toEqual([])
+    expect(newFeed?.activity(runId, "active")).toBeUndefined()
+
+    runner.handles[0]?.settle("done")
+    runtime.dispose()
+    expect(readDagPanelFeed(newSessionId)).toBeUndefined()
   }, { timeout: 20_000 })
 })

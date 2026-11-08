@@ -36,6 +36,7 @@ import { scheduleDagRetentionSweep, type DagRetentionSweepOptions } from "./dag-
 import { createDagRpcBridge, type DagBridgeTimers } from "./dag-rpc-bridge"
 import { registerDagRpcHandlers } from "./dag-rpc-handlers"
 import { createDagStatusUi, type DagStatusUiTimers } from "./dag-status-ui"
+import type { InlineInteraction } from "./inline-interaction"
 import { createDagWake } from "./dag-wake"
 import { createDagWakeSource } from "./dag-wake-source"
 import type { TaskEngine } from "./engine"
@@ -51,6 +52,8 @@ import { createDagRuntimeControls } from "./dag-runtime-controls"
 import type { PausedChildRecoveryPort } from "../../../../senpi-task/src/dag/paused-child-recovery"
 import { createDagRunPauseSource, type DagGuidanceDelivery } from "./dag-run-pause-source"
 import { ownedSubtree } from "./engine-run-pause"
+import { claimDagPanelFeed } from "./dag-panel-feed"
+import { DAG_MAX_RUN_SNAPSHOTS, type DagBridgeRunSnapshot } from "./dag-snapshot-payload"
 
 const EVENT_PAGE_SIZE = 1000
 const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "cancelled"])
@@ -97,6 +100,8 @@ export interface DagRuntimeDeps {
   readonly coordinator?: IdleInjectionCoordinator
   readonly bridgeTimers?: DagBridgeTimers
   readonly statusUiTimers?: DagStatusUiTimers
+  /** The one inline focus menu, shared with the ordinary task widget; the composition owns it. */
+  readonly interaction?: InlineInteraction
   /** Liveness probe + timers for the paused-run lease watch; production uses signal-0 and unref'd timers. */
   readonly leaseWatch?: DagLeaseWatchOptions
   /** Scheduler for the retention sweep; production defers it off the session-start path. */
@@ -129,6 +134,18 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
   let mutationListener = (): void => undefined
   let durableEventListener = (_event: DagRunEvent): void => undefined
   let activeSessionId: string | undefined
+  let panelFeedOwner: object | undefined
+  let disposePanelFeed: (() => void) | undefined
+  let notifyPanelFeed = (): void => undefined
+  const retainedPanelSnapshots = new Map<string, DagBridgeRunSnapshot>()
+
+  const releasePanelFeed = (): void => {
+    disposePanelFeed?.()
+    disposePanelFeed = undefined
+    panelFeedOwner = undefined
+    notifyPanelFeed = (): void => undefined
+    retainedPanelSnapshots.clear()
+  }
 
   const store: DagFileStore = {
     ...baseStore,
@@ -159,8 +176,8 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
     taskManager,
     materializeSkills,
     executionMode: {
-      agents: deps.engine.agents,
-      config: deps.engine.omoConfig,
+      get agents() { return deps.engine.agents },
+      get config() { return deps.engine.omoConfig },
       // Live read: a DAG node dispatched before the session resolved `auto` names no mode and the
       // manager decides, so no run is pinned to a guess.
       autoMode: () => deps.engine.host.executionModeGate.current(),
@@ -350,6 +367,7 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
     runtime: deps.engine.runtime,
     logger: deps.logger,
     ...(deps.statusUiTimers === undefined ? {} : { timers: deps.statusUiTimers }),
+    ...(deps.interaction === undefined ? {} : { interaction: deps.interaction }),
   })
 
   const syncActivitySubscriptions = (): void => {
@@ -409,6 +427,7 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
           ...activity,
           activity: activity.currentTool ?? activity.lastAssistantLine ?? activity.activity,
         })
+        notifyPanelFeed()
       }))
     }
   }
@@ -493,6 +512,7 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
     bridge.notifyStoreMutation()
     syncActivitySubscriptions()
     statusUi.scheduleSync()
+    notifyPanelFeed()
   }
 
   const cancelLeaseWatches = (): void => {
@@ -585,6 +605,7 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
     guide,
     taskRecord: (taskId) => deps.engine.manager.get(taskId),
     async attach(event) {
+      releasePanelFeed()
       activeSessionId = deps.engine.runtime.sessionId()
       durableEventListener = onEvent
       wake?.onSessionStart(activeSessionId)
@@ -606,6 +627,37 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
           ...(forkSource.kind === "source" ? { forkSourceSessionId: forkSource.sessionId } : {}),
         })
       }
+      if (sessionId !== undefined && activeSessionId === sessionId) {
+        const owner = {}
+        panelFeedOwner = owner
+        const claimed = claimDagPanelFeed(sessionId, owner, {
+          runs: () => {
+            if (activeSessionId !== sessionId || panelFeedOwner !== owner) return []
+            let summaries: ReturnType<typeof manager.list>
+            try {
+              summaries = manager.list(sessionId, { limit: DAG_MAX_RUN_SNAPSHOTS })
+            } catch {
+              return [...retainedPanelSnapshots.values()].slice(0, DAG_MAX_RUN_SNAPSHOTS)
+            }
+            const snapshots = summaries.flatMap((summary) => {
+              try {
+                return [{ ...manager.snapshot(summary.runId, sessionId), updatedAt: summary.updatedAt }]
+              } catch {
+                const retained = retainedPanelSnapshots.get(summary.runId)
+                return retained === undefined ? [] : [retained]
+              }
+            }).slice(0, DAG_MAX_RUN_SNAPSHOTS)
+            retainedPanelSnapshots.clear()
+            for (const snapshot of snapshots) {
+              retainedPanelSnapshots.set(snapshot.runId, snapshot)
+            }
+            return snapshots
+          },
+          activity: (runId, nodeId) => statusUi.activity(runId, nodeId),
+        })
+        disposePanelFeed = claimed.dispose
+        notifyPanelFeed = claimed.notify
+      }
       // #7316 defect 1: the bridge attaches AFTER recovery so its first emitted snapshot reflects
       // the recovered runs. Attaching first pushed a pre-recovery paused projection, and wholesale
       // consumers (omo-desktop) read a run missing-or-paused as "the dag finished". While recovery
@@ -613,16 +665,19 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
       bridge.attach()
       syncActivitySubscriptions()
       statusUi.syncNow()
+      notifyPanelFeed()
     },
     sync() {
       bridge.sync()
       bridge.notifyStoreMutation()
       statusUi.scheduleSync()
+      notifyPanelFeed()
     },
     resend() {
       bridge.resend()
     },
     detach() {
+      releasePanelFeed()
       durableEventListener = () => undefined
       const detachedListeners = new Map([...runListeners].map(([runId, listeners]) => [runId, new Set(listeners)]))
       const stopping = [...schedulers].map(([runId, owned]) =>
@@ -637,6 +692,7 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
       statusUi.dispose()
     },
     async pauseForShutdown() {
+      releasePanelFeed()
       cancelLeaseWatches()
       // #8020: a committed shutdown RETIRES the schedulers instead of cancelling them (that is what
       // `detach` does, and doing it here is what used to destroy a run on every session switch).
@@ -658,6 +714,7 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
       if (sessionId !== undefined) recovery.pauseRunsForShutdown(sessionId)
     },
     dispose() {
+      releasePanelFeed()
       unregisterPauseSource?.()
       stopObservingSchedulers()
       cancelLeaseWatches()

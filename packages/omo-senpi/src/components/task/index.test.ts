@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { OmoTaskSettingsSchema, loadOmoConfig } from "@oh-my-opencode/omo-config-core"
+import { OmoTaskSettingsSchema, loadOmoConfig, type LoadOmoConfigOptions, type OmoConfig } from "@oh-my-opencode/omo-config-core"
 import { createRuntimeState, transitionRuntimeState } from "@oh-my-opencode/team-core/team-state-store"
 import {
   createTaskRecordStore,
@@ -14,12 +14,15 @@ import {
 } from "@oh-my-opencode/senpi-task"
 
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
+import type { SenpiOmoConfigResult } from "../config-resolution"
+import { loadSenpiOmoConfig } from "../config-resolution"
 import type { ComponentContext, ComponentLogger } from "../../extension/types"
 import { composeTaskEngine, type TaskEngine } from "./engine"
 import { createTaskComponent, wireEventBridge } from "./index"
 import * as taskComponentModule from "./index"
 import type { CapturedUi } from "./runtime-context"
 import { createSessionTransitionBridge } from "./session-transition-bridge"
+import { TASK_ROUTING_PROFILE_ENTRY } from "./routing-profile"
 
 // This suite is not about job widgets: keep the task component off the real senpi job-widget host.
 const noJobWidgetHost = async (): Promise<Record<string, never>> => ({})
@@ -50,7 +53,7 @@ const TASK_EVENTS = [
 ]
 const SKILL_INVOCATION_TRACKER_EVENTS = ["input", "tool_result", "session_start", "session_shutdown"]
 const DAG_LIFECYCLE_EVENTS = ["session_start", "session_shutdown", "before_agent_start", "session_resumed", "session_shutdown"]
-const TASK_COMMANDS = ["dag", "task-kill", "tasks"]
+const TASK_COMMANDS = ["dag", "routing", "task-kill", "tasks"]
 
 interface RecordedLog {
   level: "info" | "warn" | "error"
@@ -95,6 +98,53 @@ function fakeUi(): CapturedUi {
     select: async () => undefined,
     confirm: async () => false,
   }
+}
+
+// File-private routing fixture: serves two named profiles over the real base config so the
+// composition tests drive persist/restore/reset/invalid through the component's own loadConfig
+// seam. No shared fixture is touched.
+class AppendEntryFakeExtensionAPI extends FakeExtensionAPI {
+  readonly appended: Array<{ customType: string; data: unknown }> = []
+
+  appendEntry(customType: string, data?: unknown): void {
+    this.appended.push({ customType, data })
+  }
+}
+function routingLoadConfig(cwd: string, routed: OmoConfig): typeof loadSenpiOmoConfig {
+  const base = loadSenpiOmoConfig({ cwd })
+  const layered: SenpiOmoConfigResult = {
+    ...base,
+    layers: [
+      ...base.layers,
+      {
+        config: { profiles: { alpha: {}, beta: {} } },
+        source: { exists: false, loaded: false, path: "test-routing", scope: "project" },
+      },
+    ],
+  }
+  return (options: LoadOmoConfigOptions = {}): SenpiOmoConfigResult =>
+    options.profile === undefined ? layered : { ...layered, config: routed }
+}
+
+function branchCtx(sessionId: string, profile?: string): {
+  sessionManager: { getSessionId: () => string; getBranch: () => unknown[] }
+} {
+  return {
+    sessionManager: {
+      getSessionId: () => sessionId,
+      getBranch: () => profile === undefined
+        ? []
+        : [{ customType: TASK_ROUTING_PROFILE_ENTRY, data: { profile } }],
+    },
+  }
+}
+
+function routingHandlerFor(pi: FakeExtensionAPI): (args: string, ctx: unknown) => Promise<unknown> {
+  const entry = pi.commands.find((candidate) => candidate.name === "routing")
+  if (entry === undefined) throw new Error("expected routing command")
+  const handler = entry.options["handler"]
+  if (typeof handler !== "function") throw new Error("expected routing handler")
+  return handler as (args: string, ctx: unknown) => Promise<unknown>
 }
 
 const noopStatusUi = { scheduleSync: () => {}, syncNow: () => {}, observeRecord: () => {}, dispose: () => {} }
@@ -238,8 +288,11 @@ describe("omo-senpi task component wiring", () => {
     // host pre-warm's session_start (revival) plus its default `first-turn` edges (input, before_agent_start);
     // the pre-warm registers nothing on win32, where task children never use a host
     const prewarmEvents = process.platform === "win32" ? [] : ["session_start", "input", "before_agent_start"]
+    // plus the routing-profile restore's session_start (re-applies the persisted profile on every
+    // start) and the /dag watch holder's session_shutdown (closes an open watch with its session)
+    const compositionEvents = ["session_start", "session_shutdown"]
     expect(pi.handlers.map((handler) => handler.event).sort()).toEqual(
-      [...TASK_EVENTS, ...SKILL_INVOCATION_TRACKER_EVENTS, ...DAG_LIFECYCLE_EVENTS, "session_start", "session_shutdown", "session_start", ...prewarmEvents].sort(),
+      [...TASK_EVENTS, ...SKILL_INVOCATION_TRACKER_EVENTS, ...DAG_LIFECYCLE_EVENTS, "session_start", "session_shutdown", "session_start", ...compositionEvents, ...prewarmEvents].sort(),
     )
   })
 
@@ -575,5 +628,180 @@ describe("omo-senpi task component wiring", () => {
       (entry) => entry.level === "warn" && entry.message.includes("missing ExtensionAPI capabilities"),
     )
     expect(skipWarnings).toHaveLength(1)
+  })
+
+  it("#given routing profiles #when /routing selects one #then the choice persists, the surfaces re-register, and a new session restores it", async () => {
+    // given a component whose profile switch routes a new agent
+    const project = tempProject()
+    const routed = {
+      ...loadOmoConfig({ cwd: project }).config,
+      agents: {
+        scout: { description: "Routed scout", prompt: "Scout the routed tree." },
+      },
+    } as unknown as OmoConfig
+    const pi = new AppendEntryFakeExtensionAPI()
+    const appended = pi.appended
+    const notifies: Array<{ message: string; type?: string }> = []
+    const ui = { notify: (message: string, type?: "info" | "warning" | "error"): void => {
+      notifies.push({ message, type })
+    } }
+    await createTaskComponent({
+      loadJobWidgetHost: noJobWidgetHost,
+      resolveCwd: () => project,
+      loadConfig: routingLoadConfig(project, routed),
+    }).register(pi, ctxFor(pi, createLogger()))
+    const routing = routingHandlerFor(pi)
+    const count = (name: string): number => pi.tools.filter((tool) => tool["name"] === name).length
+    const taskDescriptions = (): string[] => pi.tools
+      .filter((tool) => tool["name"] === "task")
+      .map((tool) => String(tool["description"] ?? ""))
+    const beforeTask = count("task")
+    const beforeTeamCreate = count("team_create")
+    expect(taskDescriptions()[0]).not.toContain("scout")
+
+    // when /routing selects the profile
+    await routing("alpha", { ui })
+
+    // then the choice persists and every routing surface re-registers
+    expect(notifies.at(-1)).toMatchObject({ message: "Task routing set to alpha.", type: "info" })
+    expect(appended).toEqual([{ customType: TASK_ROUTING_PROFILE_ENTRY, data: { profile: "alpha" } }])
+    expect(count("task")).toBe(beforeTask + 1)
+    expect(count("team_create")).toBe(beforeTeamCreate + 1)
+    // the re-registered model-facing description carries the routed agent
+    expect(taskDescriptions().at(-1)).toContain("scout")
+
+    // when a new session starts carrying the persisted branch entry
+    await pi.dispatch("session_start", {}, branchCtx("session-a", "alpha"))
+
+    // then the restore applies the same routing again without another persist
+    expect(count("task")).toBe(beforeTask + 2)
+    expect(appended).toHaveLength(1)
+    await routing("", { ui })
+    expect(notifies.at(-1)?.message).toContain("alpha")
+  })
+
+  it("#given an active routing profile #when /routing resets #then the default returns and a bare session does not leak the selection", async () => {
+    // given a selected profile
+    const project = tempProject()
+    const routed = {
+      ...loadOmoConfig({ cwd: project }).config,
+      agents: {
+        scout: { description: "Routed scout", prompt: "Scout the routed tree." },
+      },
+    } as unknown as OmoConfig
+    const pi = new AppendEntryFakeExtensionAPI()
+    const appended = pi.appended
+    const notifies: Array<{ message: string; type?: string }> = []
+    const ui = { notify: (message: string, type?: "info" | "warning" | "error"): void => {
+      notifies.push({ message, type })
+    } }
+    await createTaskComponent({
+      loadJobWidgetHost: noJobWidgetHost,
+      resolveCwd: () => project,
+      loadConfig: routingLoadConfig(project, routed),
+    }).register(pi, ctxFor(pi, createLogger()))
+    const routing = routingHandlerFor(pi)
+    await routing("alpha", { ui })
+    expect(appended).toHaveLength(1)
+
+    // when /routing resets to the default
+    await routing("default", { ui })
+
+    // then the reset persists the null marker and re-applies the base routing
+    expect(notifies.at(-1)?.message).toContain("default")
+    expect(appended.at(-1)).toEqual({ customType: TASK_ROUTING_PROFILE_ENTRY, data: { profile: null } })
+
+    // when a bare session (no branch override) starts afterwards
+    await pi.dispatch("session_start", {}, branchCtx("session-b"))
+
+    // then it reads the default, not the previous session's selection
+    await routing("", { ui })
+    expect(notifies.at(-1)?.message).toMatch(/^Task routing: default\./)
+  })
+
+  it("#given an unknown profile #when /routing selects it and a session restores it #then both refuse without crashing", async () => {
+    // given
+    const project = tempProject()
+    const pi = new AppendEntryFakeExtensionAPI()
+    const appended = pi.appended
+    const notifies: Array<{ message: string; type?: string }> = []
+    const ui = { notify: (message: string, type?: "info" | "warning" | "error"): void => {
+      notifies.push({ message, type })
+    } }
+    await createTaskComponent({
+      loadJobWidgetHost: noJobWidgetHost,
+      resolveCwd: () => project,
+      loadConfig: routingLoadConfig(project, loadOmoConfig({ cwd: project }).config),
+    }).register(pi, ctxFor(pi, createLogger()))
+    const routing = routingHandlerFor(pi)
+    const taskCount = (): number => pi.tools.filter((tool) => tool["name"] === "task").length
+    const toolsBefore = taskCount()
+
+    // when an unknown profile is selected
+    await routing("nope", { ui })
+
+    // then it warns, persists nothing, and re-registers nothing
+    expect(notifies.at(-1)).toMatchObject({ type: "warning" })
+    expect(notifies.at(-1)?.message).toContain("nope")
+    expect(appended).toEqual([])
+    expect(taskCount()).toBe(toolsBefore)
+
+    // when a session restores the same unknown profile from its branch
+    await pi.dispatch("session_start", {}, branchCtx("session-a", "nope"))
+
+    // then startup falls back to the default instead of crashing
+    await routing("", { ui })
+    expect(notifies.at(-1)?.message).toContain("default")
+    expect(notifies.at(-1)?.message).not.toContain("nope")
+  })
+
+  it("#given full registration #when both watches run headless #then each rides its composed watch seam and shutdown resets cleanly", async () => {
+    // given a fully registered component
+    const project = tempProject()
+    const pi = new FakeExtensionAPI()
+    await createTaskComponent({ loadJobWidgetHost: noJobWidgetHost, resolveCwd: () => project })
+      .register(pi, ctxFor(pi, createLogger()))
+    const command = (name: string): ((args: string, ctx: unknown) => Promise<unknown>) => {
+      const entry = pi.commands.find((candidate) => candidate.name === name)
+      if (entry === undefined) throw new Error(`expected ${name} command`)
+      const handler = entry.options["handler"]
+      if (typeof handler !== "function") throw new Error(`expected ${name} handler`)
+      return handler as (args: string, ctx: unknown) => Promise<unknown>
+    }
+    const headless = (sessionId: string): unknown => ({
+      ui: {
+        notify: (message: string, type?: string): void => {
+          headlessNotifies.push({ message, type })
+        },
+      },
+      mode: "rpc",
+      sessionManager: { getSessionId: () => sessionId },
+    })
+    const headlessNotifies: Array<{ message: string; type?: string }> = []
+
+    // when /tasks watch runs without an interactive terminal
+    await command("tasks")("watch", headless("session-a"))
+
+    // then it reaches the composed task watch seam, not the unavailable fallback
+    expect(headlessNotifies).toHaveLength(1)
+    expect(headlessNotifies[0]).toMatchObject({ type: "info" })
+
+    // when /dag watch runs without an interactive terminal
+    await command("dag")("watch", headless("session-a"))
+
+    // then it reaches the composed DAG watch seam, not the unavailable fallback
+    expect(headlessNotifies).toHaveLength(2)
+    expect(headlessNotifies[1]).toMatchObject({ type: "info" })
+
+    // when the session shuts down and a new one starts
+    await pi.dispatch("session_shutdown", {}, headless("session-a"))
+    await pi.dispatch("session_start", {}, {
+      ui: fakeUi(),
+      mode: "tui",
+      sessionManager: { getSessionId: () => "session-a", getBranch: () => [] },
+    })
+
+    // then the lifecycle closes and resets without throwing
+    expect(headlessNotifies).toHaveLength(2)
   })
 })

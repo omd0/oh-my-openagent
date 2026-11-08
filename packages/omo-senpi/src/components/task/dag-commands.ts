@@ -1,6 +1,8 @@
 import { normalizeRendererText } from "@oh-my-opencode/senpi-task/renderer-text"
 
 import type { SenpiExtensionAPI } from "../../extension/types"
+import { createDagSubagentService, type DagWatchPort, type DagWatchSummary } from "./dag-subagent-service"
+import { createWatchHolder, mountSubagentWatch, type WatchHolder, type WatchUi } from "./watch-mount"
 
 const LIST_LIMIT = 20
 const EMPTY_STATE = "No dag runs in this session."
@@ -95,20 +97,39 @@ interface DagCommandContext {
   readonly sessionManager?: { getSessionId(): string }
 }
 
-interface DagCommandUi {
-  notify(message: string, type?: "info" | "warning" | "error"): void
+interface DagCommandUi extends WatchUi {
   select(title: string, options: string[]): Promise<string | undefined>
   confirm(title: string, message: string): Promise<boolean>
 }
 
-export function registerDagCommands(pi: SenpiExtensionAPI, manager: DagCommandManager): void {
-  pi.registerCommand("dag", {
-    description: "List dag runs, or show one run's wave tree.",
-    handler: (args: string, ctx: DagCommandContext) => runDagCommand(manager, args, ctx),
-  })
+// The watch wiring is optional: a caller that passes only the read seam keeps the read-only /dag.
+export interface DagWatchDeps {
+  readonly port: DagWatchPort
+  readonly stateDir: string
+  // One overlay owner for the whole extension: /tasks watch and /dag watch share it, so only one watch is open.
+  readonly holder?: WatchHolder
 }
 
-async function runDagCommand(manager: DagCommandManager, args: string, ctx: DagCommandContext): Promise<void> {
+const WATCH_USAGE = "Usage: /dag watch [runId]"
+const TERMINAL_RUN_STATUSES: ReadonlySet<string> = new Set(["completed", "failed", "cancelled"])
+
+export function registerDagCommands(pi: SenpiExtensionAPI, manager: DagCommandManager, watch?: DagWatchDeps): void {
+  const holder: WatchHolder = watch?.holder ?? createWatchHolder()
+  pi.registerCommand("dag", {
+    description: "List dag runs, show one run's wave tree, or watch a run's nodes live (/dag watch [runId]).",
+    handler: (args: string, ctx: DagCommandContext) => runDagCommand(manager, args, ctx, watch, holder),
+  })
+  // The open watch closes with its session, so no timer or terminal hook outlives the session.
+  if (watch !== undefined) pi.on("session_shutdown", () => holder.current?.close())
+}
+
+async function runDagCommand(
+  manager: DagCommandManager,
+  args: string,
+  ctx: DagCommandContext,
+  watch: DagWatchDeps | undefined,
+  holder: WatchHolder,
+): Promise<void> {
   const ui = ctx.ui
   if (ui === undefined) return
   const sessionId = ctx.sessionManager?.getSessionId()
@@ -117,12 +138,105 @@ async function runDagCommand(manager: DagCommandManager, args: string, ctx: DagC
     ui.notify(EMPTY_STATE, "info")
     return
   }
-  const runId = args.trim().split(/\s+/).filter((token) => token.length > 0)[0]
+  const tokens = args.trim().split(/\s+/).filter((token) => token.length > 0)
+  if (tokens[0] === "watch") {
+    await runDagWatch(watch, holder, tokens.slice(1), { ctx, ui, sessionId })
+    return
+  }
+  const runId = tokens[0]
   if (runId === undefined) {
     renderList(manager, sessionId, ui)
     return
   }
   renderDetail(manager, runId, sessionId, ui)
+}
+
+// `/dag watch [runId]`: the run is looked up in this session's own list, so a foreign or unknown id is
+// refused the same way for every caller. Without an id, a native picker lists the session's live runs.
+async function runDagWatch(
+  watch: DagWatchDeps | undefined,
+  holder: WatchHolder,
+  rest: readonly string[],
+  scope: { readonly ctx: DagCommandContext; readonly ui: DagCommandUi; readonly sessionId: string },
+): Promise<void> {
+  const { ctx, ui, sessionId } = scope
+  if (rest.length > 1) {
+    ui.notify(`${WATCH_USAGE}. Pass one run id, or none to pick a live run.`, "warning")
+    return
+  }
+  if (watch === undefined) {
+    ui.notify("Live watching is not available in this session.", "warning")
+    return
+  }
+  const interactive = ctx.mode === undefined || ctx.mode === "tui"
+  if (!interactive || ui.custom === undefined) {
+    ui.notify("Live watching needs the interactive terminal UI. Use /dag <runId> for the read-only node tree.", "info")
+    return
+  }
+  if (holder.current !== undefined) {
+    ui.notify("A dag watch is already open.", "info")
+    return
+  }
+  // The slot is held while the picker is open, so a second /dag watch is refused and a session shutdown
+  // during the picker cancels the pending mount instead of letting it open afterwards. Every exit
+  // (refusal, cancel, throw, or handing the slot to the mount) goes through the one finally below.
+  let cancelled = false
+  const placeholder: { close(): void } = {
+    close: () => {
+      cancelled = true
+    },
+  }
+  holder.current = placeholder
+  const release = (): void => {
+    if (holder.current === placeholder) holder.current = undefined
+  }
+  try {
+    const listed = watch.port.list(sessionId)
+    const requested = rest[0]
+    let run: DagWatchSummary | undefined
+    if (requested === undefined) {
+      const live = listed.filter((entry) => !TERMINAL_RUN_STATUSES.has(entry.status))
+      if (live.length === 0) {
+        ui.notify("No live dag runs in this session. For ordinary task subagents use /tasks watch. /dag lists runs.", "info")
+        return
+      }
+      const options = live.map((entry) => runOption(entry))
+      const choice = await ui.select("Watch which run?", options)
+      run = choice === undefined ? undefined : live[options.indexOf(choice)]
+    } else {
+      run = listed.find((entry) => entry.runId === requested)
+      if (run === undefined) {
+        ui.notify(`No dag run "${normalizeRendererText(requested)}" in this session.`, "warning")
+        return
+      }
+    }
+    // Re-check after the await: the session may have changed or shut down while the picker was open.
+    // Nothing scoped to the old session is read or mounted past this point.
+    if (run === undefined || cancelled || holder.current !== placeholder || ctx.sessionManager?.getSessionId() !== sessionId) return
+    release()
+    const service = createDagSubagentService({
+      port: watch.port,
+      runId: run.runId,
+      parentSessionId: sessionId,
+      stillBound: () => ctx.sessionManager?.getSessionId() === sessionId,
+      stateDir: watch.stateDir,
+    })
+    await mountSubagentWatch(holder, {
+      ui,
+      service,
+      parentId: sessionId,
+      currentParentId: () => ctx.sessionManager?.getSessionId(),
+    })
+  } catch (error) {
+    ui.notify(`Dag watch failed: ${normalizeRendererText(error instanceof Error ? error.message : String(error))}`, "error")
+  } finally {
+    // A no-op once the mount holds the slot: the mounted watch's own holder is never cleared from here.
+    release()
+  }
+}
+
+function runOption(summary: DagWatchSummary): string {
+  return `${normalizeRendererText(summary.name)} (${normalizeRendererText(summary.runId)}) ${normalizeRendererText(summary.status)}`
 }
 
 function renderList(manager: DagCommandManager, sessionId: string, ui: DagCommandUi): void {

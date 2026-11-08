@@ -1,6 +1,6 @@
 import { describe, expect, it, onTestFinished, spyOn } from "bun:test"
 import * as childProcess from "node:child_process"
-import { mkdtempSync } from "node:fs"
+import { mkdirSync, mkdtempSync } from "node:fs"
 import * as fs from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { basename, join } from "node:path"
@@ -17,7 +17,21 @@ describe("omo-senpi ultrawork packaged reload", () => {
     const root = mkdtempSync(join(reloadRootParent(), "omo-ulw-reload-"))
     const hosts: ReloadHost[] = []
     const sessions: FakeExtensionAPI[] = []
-    const pinned = { TMPDIR: root, TEMP: root, TMP: root, OMO_CODING_AGENT_DIR: join(root, "agent"), OMO_RPC_SHARD_ROOT: join(root, "shards") }
+    // The Senpi RPC auth client resolves its key root from the brand-specific agent-dir names and
+    // SENPI_RPC_KEY_ROOT, which no omo pin supplies by default: an unset one reads the real ~/.senpi/agent
+    // and its permissions, and a group-writable home rejects the host probe before any warmup.
+    const agentDir = join(root, "agent")
+    mkdirSync(agentDir, { mode: 0o700 })
+    const pinned = {
+      TMPDIR: root,
+      TEMP: root,
+      TMP: root,
+      OMO_CODING_AGENT_DIR: agentDir,
+      SENPI_CODING_AGENT_DIR: agentDir,
+      PI_CODING_AGENT_DIR: agentDir,
+      SENPI_RPC_KEY_ROOT: agentDir,
+      OMO_RPC_SHARD_ROOT: join(root, "shards"),
+    }
     const previous = Object.fromEntries(Object.keys(pinned).map((name) => [name, process.env[name]]))
     const restores: Array<() => void> = [() => {
       for (const [name, value] of Object.entries(previous)) {

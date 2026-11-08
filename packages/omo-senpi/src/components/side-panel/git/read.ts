@@ -2,9 +2,16 @@ import { GIT_TIMEOUT_MS } from "../constants"
 import type { PanelGitStatus } from "../sections/files"
 import { mergeGitDeltas, parseNumstatZ, parsePorcelainZ } from "./parse"
 
+/** Output ceiling also applied to injected exec implementations before parsing. */
+export const PANEL_GIT_OUTPUT_MAX_BYTES = 1024 * 1024
+/** Retained status entries, after parsing the bounded NUL-delimited payload. */
+export const PANEL_GIT_FILE_CAP = 2_000
+
 export interface PanelExecResult {
   readonly stdout: string
   readonly code: number
+  readonly tooLarge?: boolean
+  readonly failed?: boolean
 }
 
 /** The host's `exec`, narrowed to what the git reads need. */
@@ -28,13 +35,34 @@ export async function readGitStatus(exec: PanelExec, root: string): Promise<Pane
     run(["diff", "--cached", "--numstat", "-z"]),
   ])
   // No status means no section: a partial answer would misreport a clean tree.
-  if (status === undefined || status.code !== 0) return undefined
+  if (status === undefined || status.failed === true) return undefined
+  if (isTooLarge(status)) return { root, files: [], tooLarge: true }
+  if (status.code !== 0) return undefined
+  if (
+    isTooLarge(unstaged) ||
+    isTooLarge(staged) ||
+    hasNonzeroResult(unstaged) ||
+    hasNonzeroResult(staged)
+  ) {
+    return { root, files: [], tooLarge: true }
+  }
+  const entries = parsePorcelainZ(status.stdout)
+  const tooLarge = entries.length > PANEL_GIT_FILE_CAP
   return {
     root,
     files: mergeGitDeltas(
-      parsePorcelainZ(status.stdout),
+      entries.slice(0, PANEL_GIT_FILE_CAP),
       parseNumstatZ(unstaged?.stdout ?? ""),
       parseNumstatZ(staged?.stdout ?? ""),
     ),
+    ...(tooLarge ? { tooLarge: true } : {}),
   }
+}
+
+function isTooLarge(result: PanelExecResult | undefined): boolean {
+  return result?.tooLarge === true || result?.failed === true || (result !== undefined && Buffer.byteLength(result.stdout, "utf8") > PANEL_GIT_OUTPUT_MAX_BYTES)
+}
+
+function hasNonzeroResult(result: PanelExecResult | undefined): boolean {
+  return result !== undefined && result.code !== 0
 }

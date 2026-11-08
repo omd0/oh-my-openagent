@@ -65,6 +65,20 @@ export interface PopupTui {
   requestRender(force?: boolean): void
 }
 
+/**
+ * A mouse event as the host dispatches it to an overlay component. A wheel carries `wheelDelta`: the
+ * signed row count the host resolved, with its acceleration already applied, negative towards the top.
+ */
+export interface PanelOverlayMouseEvent {
+  readonly type: string
+  readonly wheelDelta?: number
+}
+
+/** Claims a mouse event: the host then repaints and does not route the event to the layout behind. */
+export interface PanelOverlayMouseResult {
+  readonly handled: true
+}
+
 /** Builds the component a host overlay paints, and closes itself through `done`. */
 export type PanelPopupFactory = (
   tui: PopupTui,
@@ -227,6 +241,31 @@ export interface PanelRow {
   readonly color?: PanelColor
   /** What a click on this row opens. A row without one is painted as plain text. */
   readonly action?: PanelAction
+  /**
+   * The visible columns the click covers, for a row whose link should not span all of it. Absent,
+   * the whole row is the link. Columns are counted from the start of the row's text, not the column.
+   */
+  readonly linkSpan?: { readonly start: number; readonly end: number }
+  /**
+   * Per-part colour over the row's visible columns, for a row that carries more than one meaning
+   * (a file's name, its status and its added and removed counts). Columns outside every span take
+   * `color`. The spans are authored by the panel, never taken from the text they colour.
+   */
+  readonly styles?: readonly PanelStyleSpan[]
+}
+
+/**
+ * A colour for one part of a row: a semantic name the theme knows, or a shade from the 256-colour
+ * palette for a gradient the theme has no name for. Shades are authored numbers, so they never carry
+ * text from the outside.
+ */
+export type PanelStyle = PanelColor | { readonly ansi256: number }
+
+export interface PanelStyleSpan {
+  /** Visible columns from the start of the row's text, end exclusive. */
+  readonly start: number
+  readonly end: number
+  readonly style: PanelStyle
 }
 
 /** The slice of pi-tui's theme the panel needs; absent on hosts that hand no theme to a widget. */
@@ -271,6 +310,8 @@ export interface PanelHostSurface {
   mount(): PanelSurfaceKind
   kind(): PanelSurfaceKind
   requestRender(): void
+  /** Returns the column to the top of its content, for a view change that must show its heading. */
+  resetScroll(): void
   /** Restore the host to its pre-panel state. Idempotent. */
   dispose(): void
 }

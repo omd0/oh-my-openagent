@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test"
 
-import type { CapturedUi } from "./runtime-context"
+import { Theme } from "../../senpi-test-runtime"
+import type { CapturedUi, WidgetFactory } from "./runtime-context"
 import {
   createDagStatusUi,
   DAG_STATUS_UI_KEY,
@@ -10,13 +11,14 @@ import {
   type DagStatusUiManager,
   type DagStatusUiTimers,
 } from "./dag-status-ui"
+import { visibleDagWorkers } from "./dag-status-inline"
 
 interface FakeUi extends CapturedUi {
-  readonly widgetCalls: Array<{ key: string; content: string[] | undefined; placement: string | undefined }>
+  readonly widgetCalls: Array<{ key: string; content: string[] | WidgetFactory | undefined; placement: string | undefined }>
 }
 
 function fakeUi(): FakeUi {
-  const widgetCalls: Array<{ key: string; content: string[] | undefined; placement: string | undefined }> = []
+  const widgetCalls: Array<{ key: string; content: string[] | WidgetFactory | undefined; placement: string | undefined }> = []
   return {
     widgetCalls,
     notify: () => undefined,
@@ -25,6 +27,85 @@ function fakeUi(): FakeUi {
     select: () => Promise.resolve(undefined),
     confirm: () => Promise.resolve(false),
   }
+}
+
+// The factory renders through the real host Theme (same truecolor stub shape as
+// message-renderers.test.ts); assertions strip ANSI and read text behavior.
+const TEST_FG_COLORS = {
+  accent: "#000000",
+  bashMode: "#000000",
+  border: "#000000",
+  borderAccent: "#000000",
+  borderMuted: "#000000",
+  customMessageLabel: "#000000",
+  customMessageText: "#000000",
+  dim: "#000000",
+  error: "#000000",
+  mdCode: "#000000",
+  mdCodeBlock: "#000000",
+  mdCodeBlockBorder: "#000000",
+  mdHeading: "#000000",
+  mdHr: "#000000",
+  mdLink: "#000000",
+  mdLinkUrl: "#000000",
+  mdListBullet: "#000000",
+  mdQuote: "#000000",
+  mdQuoteBorder: "#000000",
+  muted: "#000000",
+  success: "#000000",
+  syntaxComment: "#000000",
+  syntaxFunction: "#000000",
+  syntaxKeyword: "#000000",
+  syntaxNumber: "#000000",
+  syntaxOperator: "#000000",
+  syntaxPunctuation: "#000000",
+  syntaxString: "#000000",
+  syntaxType: "#000000",
+  syntaxVariable: "#000000",
+  text: "#000000",
+  thinkingHigh: "#000000",
+  thinkingLow: "#000000",
+  thinkingMax: "#000000",
+  thinkingMedium: "#000000",
+  thinkingMinimal: "#000000",
+  thinkingOff: "#000000",
+  thinkingText: "#000000",
+  thinkingXhigh: "#000000",
+  toolDiffAdded: "#000000",
+  toolDiffContext: "#000000",
+  toolDiffRemoved: "#000000",
+  toolOutput: "#000000",
+  toolTitle: "#000000",
+  userMessageText: "#000000",
+  warning: "#000000",
+} as const satisfies ConstructorParameters<typeof Theme>[0]
+const TEST_BG_COLORS = {
+  customMessageBg: "#000000",
+  selectedBg: "#000000",
+  toolErrorBg: "#000000",
+  toolPendingBg: "#000000",
+  toolSuccessBg: "#000000",
+  userMessageBg: "#000000",
+} as const satisfies ConstructorParameters<typeof Theme>[1]
+const TEST_THEME = new Theme(TEST_FG_COLORS, TEST_BG_COLORS, "truecolor")
+
+const ANSI_PATTERN = /\[[0-9;?]*[A-Za-z]/gu
+const OSC_PATTERN = /\][^\u0007]*(?:\u0007|\\)/gu
+
+function stripAnsi(line: string): string {
+  return line.replace(ANSI_PATTERN, "").replace(OSC_PATTERN, "")
+}
+
+/**
+ * The last widget write as painted text. A factory is invoked the way the host
+ * does (theme in, rows out); a tracking line stays a string array; a cleared
+ * widget stays undefined.
+ */
+function renderedRows(ui: FakeUi, width = 200): string[] | undefined {
+  const content = ui.widgetCalls.at(-1)?.content
+  if (content === undefined) return undefined
+  if (Array.isArray(content)) return content
+  return content(undefined, TEST_THEME).render(width).map(stripAnsi)
 }
 
 interface FakeTimers extends DagStatusUiTimers {
@@ -116,7 +197,13 @@ function activity(overrides: Partial<DagStatusActivityEvent> & { runId: string; 
 }
 
 function rowsOf(ui: FakeUi): string[] {
-  return ui.widgetCalls.at(-1)?.content ?? []
+  return renderedRows(ui) ?? []
+}
+
+function rowFor(rows: readonly string[], nodeId: string): string {
+  const row = rows.find((line) => line.includes(`/root/${nodeId}`))
+  if (row === undefined) throw new Error(`expected a painted row for node "${nodeId}": ${JSON.stringify(rows)}`)
+  return row
 }
 
 describe("createDagStatusUi.syncNow", () => {
@@ -172,14 +259,16 @@ describe("createDagStatusUi.syncNow", () => {
     dagUi.syncNow()
     const settledRows = rowsOf(ui)
 
-    // then
-    expect(pendingRows[0]).toContain("ship-it")
-    expect(pendingRows[0]).toContain("pending")
-    expect(pendingRows[0]).toContain("wave 1/2")
-    expect(pendingRows.slice(1)).toEqual(["  ◌ plan · category:quick", "  ◌ build · agent:coder"])
-    expect(runningRows.slice(1)).toEqual(["  ▶ plan · category:quick", "  ⊟ build · agent:coder"])
-    expect(settledRows.slice(1)).toEqual(["  ✗ build · agent:coder", "  ✓ plan · category:quick"])
-    expect(settledRows[0]).toContain("wave 2/2")
+    // then the factory paints one row per node with the live state badge, and the
+    // heading tracks the live count as nodes settle
+    expect(rowFor(pendingRows, "plan")).toContain("[starting]")
+    expect(rowFor(pendingRows, "build")).toContain("[starting]")
+    expect(pendingRows[0]).toContain("2 live")
+    expect(rowFor(runningRows, "plan")).toContain("[running]")
+    expect(rowFor(runningRows, "build")).toContain("[starting]")
+    expect(rowFor(settledRows, "plan")).toContain("[completed]")
+    expect(rowFor(settledRows, "build")).toContain("[failed]")
+    expect(settledRows[0]).toContain("0 live")
   })
 
   it("#given a node re-run by retry #when syncing #then only the retried node carries an xN badge", () => {
@@ -204,12 +293,11 @@ describe("createDagStatusUi.syncNow", () => {
     // when
     dagUi.syncNow()
 
-    // then
-    expect(rowsOf(ui).slice(1)).toEqual([
-      "  ▶ build · category:quick · x3",
-      "  ◌ ship · category:quick",
-      "  ✓ plan · category:quick",
-    ])
+    // then only the retried row carries the attempt badge; the sibling rows do not
+    const rows = rowsOf(ui)
+    expect(rowFor(rows, "build")).toContain("x3")
+    expect(rowFor(rows, "plan")).not.toContain("x")
+    expect(rowFor(rows, "ship")).not.toContain("x")
   })
 
   it("#given skipped and paused nodes #when syncing #then each state renders its own icon", () => {
@@ -230,11 +318,12 @@ describe("createDagStatusUi.syncNow", () => {
     // when
     dagUi.syncNow()
 
-    // then the run header takes the neutral pause-family icon and still reads paused with no
-    // live lease and no running node, while node icons keep their own per-state glyphs
-    expect(rowsOf(ui)[0]).toContain("paused")
-    expect(rowsOf(ui)[0]).not.toContain("⏸")
-    expect(rowsOf(ui).slice(1)).toEqual(["  ⊘ a · category:quick", "  ⊘ b · category:quick"])
+    // then terminal-but-parked nodes share the stopped badge while the heading
+    // shows no live work, instead of blanking the widget while the run is live
+    const rows = rowsOf(ui)
+    expect(rows[0]).toContain("0 live")
+    expect(rowFor(rows, "a")).toContain("[stopped]")
+    expect(rowFor(rows, "b")).toContain("[stopped]")
   })
 
   it("#given a run header #when syncing #then the header carries the node counts", () => {
@@ -259,10 +348,15 @@ describe("createDagStatusUi.syncNow", () => {
     // when
     dagUi.syncNow()
 
-    // then
-    expect(rowsOf(ui)[0]).toContain("1/4 done")
-    expect(rowsOf(ui)[0]).toContain("1 running")
-    expect(rowsOf(ui)[0]).toContain("1 failed")
+    // then the heading carries the live/paused counts and every node paints its
+    // own state badge alongside its identity
+    const rows = rowsOf(ui)
+    expect(rows[0]).toContain("2 live")
+    expect(rows[0]).toContain("0 paused")
+    expect(rowFor(rows, "a")).toContain("[completed]")
+    expect(rowFor(rows, "b")).toContain("[running]")
+    expect(rowFor(rows, "c")).toContain("[failed]")
+    expect(rowFor(rows, "d")).toContain("[starting]")
   })
 
   it("#given a non-tui run mode #when syncing #then nothing renders", () => {
@@ -325,7 +419,7 @@ describe("createDagStatusUi.syncNow", () => {
     expect(ui.widgetCalls.at(-1)?.placement).toBe("belowEditor")
   })
 
-  it("#given a terminal width seam #when rendering the same run at two widths #then the row adapts and the elapsed ticks against now", () => {
+  it("#given a terminal width seam #when rendering the same run at two widths #then the row adapts and the node identity survives the narrow budget", () => {
     // given one running node whose live activity is long enough to need the width budget
     const manager = fakeManager([
       snapshot({
@@ -343,30 +437,21 @@ describe("createDagStatusUi.syncNow", () => {
     })
     dagUi.onActivity(activity({ runId: "dag_1", nodeId: "wide-node", activity: "running bash grep -rn scheduler-claim packages and reporting the wave manifest drift" }))
     dagUi.syncNow()
-    const wide = rowsOf(ui)[1] ?? ""
+    const content = ui.widgetCalls.at(-1)?.content
+    if (typeof content !== "function") throw new Error("expected the live run to paint a themed factory")
+    const wide = content(undefined, TEST_THEME).render(200).map(stripAnsi)
+    const wideRow = rowFor(wide, "wide-node")
 
-    // when the same session narrows to 50 columns
-    const narrow = (() => {
-      const narrowUi = fakeUi()
-      const narrowDagUi = createDagStatusUi({
-        manager,
-        runtime: { ui: () => narrowUi, sessionId: () => "session-a", mode: () => "tui" },
-        timers: fakeTimers(),
-        terminalWidth: () => 50,
-        now: () => 95_000,
-      })
-      narrowDagUi.onActivity(activity({ runId: "dag_1", nodeId: "wide-node", activity: "running bash grep -rn scheduler-claim packages and reporting the wave manifest drift" }))
-      narrowDagUi.syncNow()
-      return rowsOf(narrowUi)[1] ?? ""
-    })()
+    // when the same run is painted for a narrow terminal
+    const narrow = content(undefined, TEST_THEME).render(50).map(stripAnsi)
+    const narrowRow = rowFor(narrow, "wide-node")
 
-    // then the wide row carries the activity and the elapsed, the narrow row drops only the activity
-    expect(wide).toContain("category:")
-    expect(wide).toContain("scheduler-claim")
-    expect(wide).toContain("1m 35s")
-    expect(narrow).toContain("category:quick")
-    expect(narrow).toContain("1m 35s")
-    expect(narrow).not.toContain("scheduler-claim")
+    // then the wide row carries the full activity, the narrow row drops it but
+    // keeps the node identity and its live badge
+    expect(wideRow).toContain("scheduler-claim")
+    expect(narrowRow).toContain("/root/wide-node")
+    expect(narrowRow).toContain("[running]")
+    expect(narrowRow).not.toContain("scheduler-claim")
   })
 })
 
@@ -452,8 +537,8 @@ describe("createDagStatusUi.onActivity", () => {
     dagUi.onActivity(activity({ runId: "dag_1", nodeId: "a", activity: "edit manager.ts" }))
     timers.advance(250)
 
-    // then
-    const nodeRow = rowsOf(ui)[1] ?? ""
+    // then the painted row carries only the latest activity for the node
+    const nodeRow = rowFor(rowsOf(ui), "a")
     expect(nodeRow).toContain("edit manager.ts")
     expect(nodeRow).not.toContain("read package.json")
   })
@@ -480,9 +565,12 @@ describe("createDagStatusUi.onActivity", () => {
     ])
     dagUi.syncNow()
 
-    // then
-    expect(rowsOf(ui)[1]).toBe("  ▶ b · category:quick")
-    expect(rowsOf(ui)[2]).toBe("  ✓ a · category:quick")
+    // then the live row leads and the completed row paints its badge with no
+    // stale activity text
+    const rows = rowsOf(ui)
+    expect(rowFor(rows, "b")).toContain("[running]")
+    expect(rowFor(rows, "a")).toContain("[completed]")
+    expect(rowFor(rows, "a")).not.toContain("edit manager.ts")
     dagUi.dispose()
   })
 
@@ -500,9 +588,10 @@ describe("createDagStatusUi.onActivity", () => {
     expect(() => dagUi.onActivity(activity({ runId: "dag_missing", nodeId: "ghost", activity: "wandering" }))).not.toThrow()
     timers.advance(250)
 
-    // then
-    expect(rowsOf(ui)).toHaveLength(2)
-    expect(rowsOf(ui).join("\n")).not.toContain("wandering")
+    // then the painted rows still cover only the known run with no trace of the stray text
+    const rows = rowsOf(ui)
+    expect(rowFor(rows, "a")).toContain("[running]")
+    expect(rows.join("\n")).not.toContain("wandering")
     dagUi.dispose()
   })
 
@@ -532,9 +621,10 @@ describe("createDagStatusUi.onActivity", () => {
     // when
     expect(() => dagUi.syncNow()).not.toThrow()
 
-    // then
-    expect(rowsOf(ui)).toHaveLength(2)
-    expect(rowsOf(ui)[0]).toContain("ship-it")
+    // then the surviving run still paints while the pruned one is skipped
+    const rows = rowsOf(ui)
+    expect(rowFor(rows, "a")).toContain("[running]")
+    expect(rows.join("\n")).not.toContain("dag_gone")
   })
 
   it("#given no session id #when syncing #then no run is queried and nothing renders", () => {
@@ -553,6 +643,43 @@ describe("createDagStatusUi.onActivity", () => {
     // then
     expect(manager.snapshotCalls).toHaveLength(0)
     expect(ui.widgetCalls.at(-1)?.content).toBeUndefined()
+  })
+})
+
+
+describe("createDagStatusUi activity coexistence", () => {
+  it("#given live activity for a running node #when reading the accessor and painting the inline watcher #then all three agree on the latest text", () => {
+    // given
+    const ui = fakeUi()
+    const timers = fakeTimers()
+    const manager = fakeManager([snapshot({ runId: "dag_1", nodes: [node({ id: "a", state: "running" })] })])
+    const dagUi = createDagStatusUi({
+      manager,
+      runtime: { ui: () => ui, sessionId: () => "session-a", mode: () => "tui" },
+      timers,
+    })
+
+    // when
+    dagUi.onActivity(activity({ runId: "dag_1", nodeId: "a", activity: "read package.json" }))
+    dagUi.onActivity(activity({ runId: "dag_1", nodeId: "a", activity: "edit manager.ts" }))
+
+    // then the accessor holds the latest text and nothing for unknown nodes
+    expect(dagUi.activity("dag_1", "a")).toBe("edit manager.ts")
+    expect(dagUi.activity("dag_1", "ghost")).toBeUndefined()
+    expect(dagUi.activity("dag_missing", "a")).toBeUndefined()
+
+    // and the painted factory rows carry that same latest text
+    dagUi.syncNow()
+    const rows = rowsOf(ui)
+    const nodeRow = rowFor(rows, "a")
+    expect(nodeRow).toContain("[running]")
+    expect(nodeRow).toContain("edit manager.ts")
+    expect(nodeRow).not.toContain("read package.json")
+
+    // and the inline watcher worker list covers exactly the painted node
+    const live = manager.snapshot("dag_1", "session-a")
+    expect(visibleDagWorkers([live], Date.now())).toEqual([{ runId: "dag_1", nodeId: "a" }])
+    dagUi.dispose()
   })
 })
 

@@ -123,6 +123,74 @@ describe("createTextPopup", () => {
     expect(handle.renders).toBeGreaterThan(0)
   })
 
+  test("#given home and end keys #when pressed #then the view jumps to the first and last screens", () => {
+    // given
+    const { component } = popup(50, long(200))
+
+    // when
+    component.handleInput("\x1b[F")
+    const atEnd = component.render(60)[2] ?? ""
+    component.handleInput("\x1b[H")
+    const atStart = component.render(60)[2] ?? ""
+
+    // then
+    expect(atEnd).toContain("line 168")
+    expect(atStart).toContain("line 0")
+  })
+
+  test("#given line keys #when pressed #then the view nudges one row and clamps at the top", () => {
+    // given
+    const { component } = popup(50, long(200))
+    component.handleInput("\x1b[6~")
+    const afterPage = component.render(60)[2] ?? ""
+
+    // when
+    component.handleInput("\x1b[B")
+    const afterDown = component.render(60)[2] ?? ""
+    component.handleInput("k")
+    component.handleInput("\x1b[H")
+    component.handleInput("\x1b[A")
+
+    // then
+    expect(afterPage).toContain("line 10")
+    expect(afterDown).toContain("line 11")
+    expect(component.render(60)[2]).toContain("line 0")
+  })
+
+  test("#given a native wheel #when it arrives #then the viewport moves, claims the event and repaints", () => {
+    // given
+    const { component, handle } = popup(50, long(200))
+    const before = component.render(60).join("\n")
+    const paints = handle.renders
+
+    // when
+    const result = component.handleMouse({ type: "wheel", wheelDelta: 3 })
+
+    // then
+    expect(result).toEqual({ handled: true })
+    expect(handle.renders).toBeGreaterThan(paints)
+    expect(component.render(60).join("\n")).not.toBe(before)
+  })
+
+  test("#given an unusable native wheel #when it arrives #then nothing is claimed and the view does not move", () => {
+    // given
+    const { component, handle } = popup(50, long(200))
+    const before = component.render(60).join("\n")
+    const paints = handle.renders
+
+    // when
+    const outcomes = [
+      component.handleMouse({ type: "wheel" }),
+      component.handleMouse({ type: "wheel", wheelDelta: Number.NaN }),
+      component.handleMouse({ type: "click", wheelDelta: 3 }),
+    ]
+
+    // then
+    expect(outcomes).toEqual([undefined, undefined, undefined])
+    expect(component.render(60).join("\n")).toBe(before)
+    expect(handle.renders).toBe(paints)
+  })
+
   test("#given a viewer that claims a key #when pressed #then the shell does not close on it", () => {
     // given
     const { component, closed } = popup(50, long(10), (data) => data === "f")

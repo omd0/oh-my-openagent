@@ -3,7 +3,8 @@ import type { OmoSidePanelSections } from "@oh-my-opencode/omo-config-core"
 import type { PanelHostFacts } from "./data/facts"
 import { buildAgentRows } from "./sections/agents"
 import { buildContextRows } from "./sections/context"
-import { buildFileRows, type PanelGitStatus } from "./sections/files"
+import { buildDagRows, type DagColumnInput } from "./sections/dag"
+import { buildChangesRows, type PanelGitStatus } from "./sections/files"
 import { buildGoalRows } from "./sections/goal"
 import { buildLocationRows, type PanelLocation } from "./sections/location"
 import { buildMemoryRows } from "./sections/memory"
@@ -23,8 +24,12 @@ export interface PanelRowsInput {
   readonly now: number
   /** How many tool rows the column shows before it starts counting the rest. */
   readonly toolRows: number
-  /** How many file rows the column shows before it starts counting the rest. */
+  /** How many file rows the Changes preview shows before it counts the rest. */
   readonly fileRows: number
+  /** Changes expanded to every file, owned by the session. An expanded Changes block takes the whole column. */
+  readonly filesExpanded?: boolean
+  /** Whether Changes rows can be clicked (a clickable column). A widget block gets the compact count only. */
+  readonly filesExpandable?: boolean
   readonly git?: PanelGitStatus
   /** The session's registered goal; absent when none is registered or the host publishes none. */
   readonly goal?: PanelGoal
@@ -33,6 +38,8 @@ export interface PanelRowsInput {
   readonly usage?: PanelUsageSnapshot
   /** Memory identity and backlog; absent when memory is off or the identity would not resolve. */
   readonly memory?: PanelMemory
+  /** The session's DAG runs; absent when the section is off, the feed is missing, or the column is not mounted. */
+  readonly dag?: DagColumnInput
 }
 
 /**
@@ -42,7 +49,14 @@ export interface PanelRowsInput {
  */
 export function buildPanelRows(input: PanelRowsInput, width: number): readonly PanelRow[] {
   if (width <= 0) return []
+  // Expanded Changes takes the whole column: the list is what was asked for, so the other sections step aside.
+  // Only an interactive column can show the full list: it is the only place with a Show less control.
+  if (input.sections.files && input.filesExpanded === true && input.filesExpandable === true) {
+    return buildChangesRows(input.git, width, { preview: input.fileRows, expanded: true, expandable: input.filesExpandable === true })
+  }
   const blocks: readonly PanelRow[][] = [
+    // The graph leads the column: a running workflow is what the user looks at first.
+    input.sections.dag && input.dag !== undefined ? [...buildDagRows(input.dag, width)] : [],
     input.sections.session
       ? [
           ...buildSessionRows(
@@ -62,7 +76,9 @@ export function buildPanelRows(input: PanelRowsInput, width: number): readonly P
     input.sections.usage && input.usage !== undefined ? [...buildUsageRows(input.usage, input.now, width)] : [],
     input.sections.agents ? [...buildAgentRows(input.state.children, input.now, width)] : [],
     input.sections.tools ? [...buildToolRows(input.state.tools, width, input.toolRows)] : [],
-    input.sections.files ? [...buildFileRows(input.git, width, input.fileRows)] : [],
+    input.sections.files
+      ? [...buildChangesRows(input.git, width, { preview: input.fileRows, expanded: false, expandable: input.filesExpandable === true })]
+      : [],
     input.sections.memory && input.memory !== undefined ? [...buildMemoryRows(input.memory, input.now, width)] : [],
     // The location line closes the column: it answers "where am I" last, next to the editor.
     [...buildLocationRows(input.location, width, input.home)],

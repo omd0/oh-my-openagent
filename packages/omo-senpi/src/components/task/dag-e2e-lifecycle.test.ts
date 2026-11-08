@@ -29,7 +29,7 @@ import { runDagTool } from "./dag-tool"
 import { wireDagLifecycle } from "./index"
 import { composeTaskEngine, type TaskEngine, type TaskRunnerFactories } from "./engine"
 import { createTeamServiceTestModelRegistry } from "./team-service-test-model-registry"
-import type { CapturedUi } from "./runtime-context"
+import type { CapturedUi, WidgetFactory } from "./runtime-context"
 import { createSessionTransitionBridge } from "./session-transition-bridge"
 
 const cleanupRoots: string[] = []
@@ -176,7 +176,7 @@ function logger() {
   return { info: () => undefined, warn: () => undefined, error: () => undefined }
 }
 
-function fakeUi(widgetCalls: Array<string[] | undefined>): CapturedUi {
+function fakeUi(widgetCalls: Array<string[] | WidgetFactory | undefined>): CapturedUi {
   return {
     notify: () => undefined,
     setStatus: () => undefined,
@@ -210,7 +210,7 @@ type RuntimeFixture = {
   readonly rpc: RpcHarness
   readonly bridgeTimers: ManualTimers
   readonly statusTimers: ManualTimers
-  readonly widgetCalls: Array<string[] | undefined>
+  readonly widgetCalls: Array<string[] | WidgetFactory | undefined>
   readonly start: (key: string, nodes?: readonly { readonly id: string; readonly dependsOn?: readonly string[] }[]) => Promise<DagRunId>
 }
 
@@ -239,7 +239,7 @@ async function runtimeFixture(options: RuntimeFixtureOptions = {}): Promise<Runt
     runnerFactories,
     ...(options.coordinator === undefined ? {} : { coordinator: options.coordinator }),
   })
-  const widgetCalls: Array<string[] | undefined> = []
+  const widgetCalls: Array<string[] | WidgetFactory | undefined> = []
   engine.runtime.captureFrom({
     mode: "tui",
     modelRegistry: createTeamServiceTestModelRegistry(),

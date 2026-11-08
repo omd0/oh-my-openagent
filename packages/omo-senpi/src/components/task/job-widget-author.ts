@@ -13,43 +13,64 @@ export function resolveJobWidgetAuthorModel(
   return resolution.kind === "resolved" ? resolution.spec.model : undefined
 }
 
-type AuthorConfig = { readonly cwd: string; readonly omoConfig: OmoConfig }
+type AuthorConfig = {
+  readonly cwd: string
+  readonly resolveSessionId: () => string | undefined
+  omoConfig: OmoConfig
+}
 
 type AuthorRoute = { readonly configs: AuthorConfig[]; withdraw: (() => void) | undefined }
 
-// senpi keeps ONE author route per host while a shared daemon runs many sessions, each with the
-// omo.json of its own project. Every registered session adds its config to its host's route; the route
-// answers with the config of the session asking (matched by cwd) and leaves a session it does not know to
-// senpi's fallback, the session model. The route is withdrawn when the last session on that host releases
-// it. State is keyed by host (one per loaded senpi module, see readJobWidgetHost), so a second host never
-// inherits or skips another host's route.
+export interface JobWidgetAuthorRouteRelease {
+  (): void
+  update(omoConfig: OmoConfig): void
+}
+
+// senpi keeps ONE author route per host while a shared daemon runs many sessions. Match by session
+// identity because two sessions in one project can select different routing profiles; cwd is only
+// the legacy fallback when the host supplies no session id. The route is withdrawn when the last
+// session on that host releases it.
 const routes = new WeakMap<JobWidgetHostApi, AuthorRoute>()
 
 function routeAuthor(configs: readonly AuthorConfig[], ctx: JobWidgetAuthorContext): SenpiModelPort | undefined {
-  const config = configs.findLast((entry) => entry.cwd === ctx.cwd)
+  const sessionId = ctx.sessionManager?.getSessionId()
+  const config = sessionId === undefined
+    ? configs.findLast((entry) => entry.cwd === ctx.cwd)
+    : configs.findLast((entry) => entry.resolveSessionId() === sessionId)
   return config === undefined ? undefined : resolveJobWidgetAuthorModel(config.omoConfig, ctx.modelRegistry)
 }
 
-export function installJobWidgetAuthor(host: JobWidgetHostApi, cwd: string, omoConfig: OmoConfig): () => void {
+export function installJobWidgetAuthor(
+  host: JobWidgetHostApi,
+  cwd: string,
+  omoConfig: OmoConfig,
+  resolveSessionId: () => string | undefined = () => undefined,
+): JobWidgetAuthorRouteRelease {
   const setAuthorResolver = host.setAuthorResolver
-  if (setAuthorResolver === undefined) return () => {}
+  if (setAuthorResolver === undefined) {
+    return Object.assign(() => {}, { update: (_nextConfig: OmoConfig) => {} })
+  }
   let route = routes.get(host)
   if (route === undefined) {
     route = { configs: [], withdraw: undefined }
     routes.set(host, route)
   }
-  const config: AuthorConfig = { cwd, omoConfig }
+  const config: AuthorConfig = { cwd, omoConfig, resolveSessionId }
   route.configs.push(config)
   const configs = route.configs
   route.withdraw ??= setAuthorResolver((ctx) => routeAuthor(configs, ctx))
   let released = false
   const owned = route
-  return () => {
+  return Object.assign(() => {
     if (released) return
     released = true
     owned.configs.splice(owned.configs.indexOf(config), 1)
     if (owned.configs.length > 0) return
     owned.withdraw?.()
     owned.withdraw = undefined
-  }
+  }, {
+    update: (nextConfig: OmoConfig) => {
+      if (!released) config.omoConfig = nextConfig
+    },
+  })
 }

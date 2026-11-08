@@ -68,6 +68,10 @@ export interface TeamServiceDeps {
   readonly newMessageId?: () => string
 }
 
+export type RoutableTeamToolsService = TeamToolsService & {
+  updateRouting(omoConfig: OmoConfig, agentNames: ReadonlySet<string>): void
+}
+
 function stateDirConfig(deps: TeamServiceDeps): StateDirConfig {
   return {
     project_dir: deps.cwd,
@@ -126,11 +130,11 @@ async function assertOwnedTeam(deps: TeamServiceDeps, config: TeamCoreConfig, te
   }
 }
 
-export function createTeamService(deps: TeamServiceDeps): TeamToolsService {
+export function createTeamService(deps: TeamServiceDeps): RoutableTeamToolsService {
   const stateDir = stateDirConfig(deps)
   const config: TeamCoreConfig = toTeamCoreConfig(deps.settings, teamStorageBaseDir(stateDir))
   const appendTaskEvent = deps.appendTaskEvent ?? createTaskEventAppender(stateDir)
-  const ports = buildMemberPorts(deps.omoConfig, deps.agentNames)
+  let ports = buildMemberPorts(deps.omoConfig, deps.agentNames)
   const omoTeams = deps.omoConfig.teams as Record<string, unknown> | undefined
   const runtimeDir = (teamRunId: string) => resolveTeamRuntimeDirs(stateDir, teamRunId).runtimeDir
   const memberExtensionEntryPath = resolveMemberExtensionEntryPath()
@@ -234,7 +238,11 @@ export function createTeamService(deps: TeamServiceDeps): TeamToolsService {
       })
     },
   }
-  return service
+  return Object.assign(service, {
+    updateRouting(omoConfig: OmoConfig, agentNames: ReadonlySet<string>) {
+      ports = buildMemberPorts(omoConfig, agentNames)
+    },
+  })
 }
 
 /**

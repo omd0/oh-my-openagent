@@ -476,6 +476,54 @@ describe("OmoTaskSettingsSchema shared-daemon keys", () => {
   })
 })
 
+describe("OmoTaskSettingsSchema routing_profile", () => {
+  test("#given no routing profile #when task settings parse #then routing_profile stays absent", () => {
+    // given / when
+    const parsed = OmoTaskSettingsSchema.parse({})
+
+    // then
+    expect(parsed.routing_profile).toBeUndefined()
+    expect(parsed).not.toHaveProperty("routing_profile")
+  })
+
+  test("#given a routing profile name #when task settings parse #then the name is preserved", () => {
+    // given / when
+    const parsed = OmoTaskSettingsSchema.parse({ routing_profile: "focused" })
+
+    // then
+    expect(parsed.routing_profile).toBe("focused")
+  })
+
+  test("#given a non-string routing profile #when task settings parse #then validation fails at the path", () => {
+    // given / when
+    const settings = OmoTaskSettingsSchema.safeParse({ routing_profile: 42 })
+    const layer = OmoTaskSettingsLayerSchema.safeParse({ routing_profile: 42 })
+
+    // then
+    expect(settings.success).toBe(false)
+    expect(layer.success).toBe(false)
+    if (settings.success) throw new Error("Expected a non-string routing_profile to fail")
+    expect(settings.error.issues.map((issue) => issue.path.join(".")).join(",")).toContain("routing_profile")
+  })
+
+  test("#given a routing profile layer #when the layer parses #then the name passes through with no defaults injected", () => {
+    // given / when
+    const parsed = OmoTaskSettingsLayerSchema.parse({ routing_profile: "focused" })
+
+    // then
+    expect(parsed.routing_profile).toBe("focused")
+    expect(parsed).not.toHaveProperty("default_concurrency")
+  })
+
+  test("#given task.routing_profile in the root config #when the root schema parses #then the value survives", () => {
+    // given / when
+    const parsed = OmoConfigSchema.parse({ task: { routing_profile: "focused" } })
+
+    // then
+    expect(parsed.task?.routing_profile).toBe("focused")
+  })
+})
+
 function taskProperties(schema: unknown): Record<string, unknown> {
   const definitions = (schema as { $defs?: Record<string, unknown>; properties?: Record<string, unknown> })
   const task = definitions.properties?.["task"]

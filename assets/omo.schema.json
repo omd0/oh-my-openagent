@@ -957,6 +957,9 @@
     "task": {
       "type": "object",
       "properties": {
+        "routing_profile": {
+          "type": "string"
+        },
         "isolation": {
           "default": {
             "enabled": false,
@@ -2543,7 +2546,8 @@
             "agents": true,
             "tools": true,
             "files": true,
-            "memory": true
+            "memory": true,
+            "dag": true
           },
           "type": "object",
           "properties": {
@@ -2576,6 +2580,10 @@
               "type": "boolean"
             },
             "memory": {
+              "default": true,
+              "type": "boolean"
+            },
+            "dag": {
               "default": true,
               "type": "boolean"
             }
@@ -3629,6 +3637,9 @@
         "task": {
           "type": "object",
           "properties": {
+            "routing_profile": {
+              "type": "string"
+            },
             "isolation": {
               "type": "object",
               "properties": {
@@ -5022,6 +5033,9 @@
                   "type": "boolean"
                 },
                 "memory": {
+                  "type": "boolean"
+                },
+                "dag": {
                   "type": "boolean"
                 }
               },
@@ -6074,6 +6088,9 @@
         "task": {
           "type": "object",
           "properties": {
+            "routing_profile": {
+              "type": "string"
+            },
             "isolation": {
               "type": "object",
               "properties": {
@@ -7467,6 +7484,9 @@
                   "type": "boolean"
                 },
                 "memory": {
+                  "type": "boolean"
+                },
+                "dag": {
                   "type": "boolean"
                 }
               },
@@ -8519,6 +8539,9 @@
         "task": {
           "type": "object",
           "properties": {
+            "routing_profile": {
+              "type": "string"
+            },
             "isolation": {
               "type": "object",
               "properties": {
@@ -9912,6 +9935,9 @@
                   "type": "boolean"
                 },
                 "memory": {
+                  "type": "boolean"
+                },
+                "dag": {
                   "type": "boolean"
                 }
               },
@@ -10970,6 +10996,9 @@
           "task": {
             "type": "object",
             "properties": {
+              "routing_profile": {
+                "type": "string"
+              },
               "isolation": {
                 "type": "object",
                 "properties": {
@@ -12364,6 +12393,9 @@
                   },
                   "memory": {
                     "type": "boolean"
+                  },
+                  "dag": {
+                    "type": "boolean"
                   }
                 },
                 "additionalProperties": false
@@ -13415,6 +13447,9 @@
               "task": {
                 "type": "object",
                 "properties": {
+                  "routing_profile": {
+                    "type": "string"
+                  },
                   "isolation": {
                     "type": "object",
                     "properties": {
@@ -14808,6 +14843,9 @@
                         "type": "boolean"
                       },
                       "memory": {
+                        "type": "boolean"
+                      },
+                      "dag": {
                         "type": "boolean"
                       }
                     },
@@ -15860,6 +15898,9 @@
               "task": {
                 "type": "object",
                 "properties": {
+                  "routing_profile": {
+                    "type": "string"
+                  },
                   "isolation": {
                     "type": "object",
                     "properties": {
@@ -17253,6 +17294,9 @@
                         "type": "boolean"
                       },
                       "memory": {
+                        "type": "boolean"
+                      },
+                      "dag": {
                         "type": "boolean"
                       }
                     },
@@ -18305,6 +18349,9 @@
               "task": {
                 "type": "object",
                 "properties": {
+                  "routing_profile": {
+                    "type": "string"
+                  },
                   "isolation": {
                     "type": "object",
                     "properties": {
@@ -19698,6 +19745,9 @@
                         "type": "boolean"
                       },
                       "memory": {
+                        "type": "boolean"
+                      },
+                      "dag": {
                         "type": "boolean"
                       }
                     },

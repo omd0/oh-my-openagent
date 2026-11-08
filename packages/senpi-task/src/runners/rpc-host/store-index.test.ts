@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { mkdirSync, mkdtempSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 
+import { withTaskRecordLock } from "../../store/record-lock"
 import { DURABLE_JSON_FS, DURABLE_JSON_FS_ASYNC, DURABLE_JSON_LOCK_OPTIONS } from "./durable-json"
 import {
   pruneMissingStoreIndexEntries,
@@ -251,4 +252,41 @@ describe("registerStoreIndex", () => {
     expect(failed).toEqual([])
     expect(Object.keys(readTaskStoreIndex(path).stores)).toHaveLength(800)
   }, 60_000)
+})
+
+// The host publishes its endpoint key record under `<agentDir>/rpc` and then verifies it, and the key-root
+// rule refuses a directory anyone else can write (socket-auth.ts). Both task-record lock creators mkdir the
+// directory the index lock lives in, so its mode is their contract, not a property of the machine's umask:
+// under a group-writable umask the directory came out 0775 and every host start failed
+// `key_publication_failed: unsafe_key_record`. The child owns the umask because the runner's umask is
+// process-global and must never be mutated.
+describe("rpc directory permissions", () => {
+  // Each row is one creator call the source fix touches, named for exactly the claim its body asserts.
+  const creators = [
+    { creator: "store-index", then: "nobody else can write it and the index still persists" },
+    { creator: "sync-lock", then: "nobody else can write it" },
+  ] as const
+  const childFixture = join(import.meta.dir, "__fixtures__", "rpc-dir-child.ts")
+
+  for (const { creator, then } of creators) {
+    posixHostRunnerTest(`#given a fresh agent dir and a group-writable umask #when ${creator} creates the rpc directory #then ${then}`, async () => {
+      // given - the directory the lock creates must not exist yet, or the creator would inherit its mode
+      const agentDir = mkdtempSync(join(tmpdir(), "dh-t7-rpc-dir-"))
+      dirs.push(agentDir)
+      expect(existsSync(join(agentDir, "rpc"))).toBe(false)
+
+      // when
+      const child = Bun.spawn([process.execPath, childFixture, agentDir, creator], { stdout: "pipe", stderr: "pipe" })
+      const [code, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()])
+
+      // then
+      expect(code, `stderr:\n${stderr}`).toBe(0)
+      const rpcDir = statSync(join(agentDir, "rpc"))
+      expect({ isDirectory: rpcDir.isDirectory(), groupOrWorldWrite: rpcDir.mode & 0o022 })
+        .toEqual({ isDirectory: true, groupOrWorldWrite: 0 })
+      if (creator === "store-index") {
+        expect(Object.keys(readTaskStoreIndex(taskStoreIndexPath(agentDir)).stores)).toEqual([resolve("/p1/.omo/senpi-task")])
+      }
+    })
+  }
 })

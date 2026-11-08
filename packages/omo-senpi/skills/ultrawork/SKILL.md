@@ -124,9 +124,12 @@ evidence: screenshot + plain transcript + cleanup receipt.
 
 # Bootstrap (COMPLETE EVERY SECTION BEFORE ANY OTHER WORK — NO SKIPPING)
 
+Work in the user's current checkout. Do not create or switch to a separate
+worktree unless the user explicitly asks for one.
+
 ## Task resources
 Before the first task command, create one `RUN_TMP=$(mktemp -d)` per task, tracking its paths under section 3 immediately. Export `TMPDIR="$RUN_TMP" NODE_COMPILE_CACHE="$RUN_TMP/node-compile-cache" BUN_RUNTIME_TRANSPILER_CACHE_PATH="$RUN_TMP/bun-transpiler"` for every command; pass the same environment explicitly to children that do not inherit it. Give independent child tasks their own run roots.
-At task end, after owned processes exit, remove only owned directories, including runtime caches. Never wipe shared caches; retain worktrees still needed by open PRs and any parent directory containing them.
+At task end, after owned processes exit, remove only owned temporary directories, including runtime caches. Never wipe shared caches or remove the user's checkout.
 
 When a ulw-loop pointer or the ulw-execute skill accompanies this
 directive, that contract supersedes bootstrap sections 1-3: its state
@@ -266,7 +269,7 @@ enough to finish within a few tool calls. Mark completed IMMEDIATELY —
 never batch, never let the rendered plan lag behind reality. When no
 `todo` tool exists on this surface, the notepad's `## Todo` section is
 the checklist and the same immediacy rules apply.
-ALWAYS add a cleanup todo AT CREATION for each worktree, cache directory (including
+ALWAYS add a cleanup todo AT CREATION for each cache directory (including
 the run root), and QA resource (PID, tmux session, browser context, port, container,
 script or temp path); complete it only after a read-back teardown receipt.
 Step text encodes WHERE / WHY (which criterion it advances) / HOW /
@@ -326,8 +329,8 @@ intent diverge. Kernel busy with a detached cell? HOP to `py` - never
 bash + `python3 -c`. Spawn independent `task(...)` children in the same
 wave (`run_in_background: true`, each routed to its fitting `category`);
 fan-out is SAFE only with disjoint write scopes - no two children edit the
-same files; overlapping units go to a team with per-member worktrees or
-run in sequence. Keep for yourself what needs your judgment, and step
+same files; coordinate overlapping units through a team with explicit file
+ownership or run them in sequence. Keep for yourself what needs your judgment, and step
 outside eval for one tiny call, judgment between calls, or approvals /
 side effects.
 
@@ -373,7 +376,7 @@ Until every success criterion PASSES with its evidence captured:
    browsers / sessions (`browser.close()` / `session.stop()`), containers (`docker rm -f`), ports
    (`lsof -i :<port>` empty), QA scripts, temp paths and QA-only env vars.
    Remove QA temp paths inside `$RUN_TMP` per criterion; remove the run root
-   and eligible worktrees at task end under Task resources.
+   at task end under Task resources.
    Append the read-back receipt beside the artifact in the notepad.
    No receipt → criterion stays in_progress.
 <!-- omo-ultrawork-astra:cleanup-step:end -->

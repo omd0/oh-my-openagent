@@ -108,3 +108,24 @@ export const CODEX_PROVIDERS: readonly string[] = ["chatgpt-subscription", "open
  * 429 carrying a 48-minute retry-after - a self-inflicted outage worth one length check.
  */
 export const MIN_ACCESS_TOKEN_LENGTH = 40
+
+/** The named route to the DAG overlay, registered only when the panel can be on. */
+export const SIDE_PANEL_DAG_COMMAND = "side-panel-dag"
+
+/** Rows the DAG section may take in the column, headers included, before it counts the rest. */
+export const DAG_SECTION_ROW_CAP = 24
+
+/** The smallest graph budget on a short terminal, so the column keeps a readable graph and the rest of its sections. */
+export const DAG_SECTION_ROW_FLOOR = 8
+
+/** Runs the column draws; any further live runs are reached through the overlay. */
+export const DAG_COLUMN_RUN_LIMIT = 2
+
+/** Narrowest node box the column draws. Narrower, a node is one line. */
+export const DAG_MIN_BOX_COLUMNS = 16
+
+/** Narrowest node box the overlay lays side by side. */
+export const DAG_OVERLAY_MIN_BOX_COLUMNS = 18
+
+/** Quiet period before feed changes repaint, so a burst of token activity costs one frame. */
+export const DAG_REPAINT_COALESCE_MS = 100

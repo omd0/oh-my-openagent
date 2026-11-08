@@ -1,5 +1,9 @@
 import type { CapturedUi } from "./runtime-context"
-import { runRows, type DagStatusRunSnapshot } from "./dag-status-row-format"
+import type { DagStatusRunSnapshot } from "./dag-status-row-format"
+import { nodeIdOfPath, renderDagInline, visibleDagWorkers } from "./dag-status-inline"
+import type { ThreadView } from "./subagent-ui/types"
+import type { InlineInteraction, InlineWorker } from "./inline-interaction"
+import { renderAgentTree as _unusedRenderAgentTree } from "./subagent-ui/widget"
 
 export type {
   DagStatusNode,
@@ -61,6 +65,8 @@ export interface DagStatusUiDeps {
   readonly terminalWidth?: () => number | undefined
   // Local rendering time for live node elapsed labels and deterministic tests.
   readonly now?: () => number
+  // The one focus menu shared with the ordinary task widget: this widget owns the "dag" group of it.
+  readonly interaction?: InlineInteraction
 }
 
 export interface DagStatusUi {
@@ -70,6 +76,7 @@ export interface DagStatusUi {
   syncNow(): void
   // Live activity feed intake: latest-wins per node, ignored for runs this session cannot see.
   onActivity(event: DagStatusActivityEvent): void
+  activity(runId: string, nodeId: string): string | undefined
   // Cancel pending timers so shutdown leaves no render scheduled past teardown.
   dispose(): void
 }
@@ -90,17 +97,18 @@ export function createDagStatusUi(deps: DagStatusUiDeps): DagStatusUi {
   let pending: TimerHandle | undefined
   let liveRefresh: TimerHandle | undefined
   const reportedRenderFaults = new Set<string>()
+  function reportRenderFault(error: unknown): void {
+    const message = error instanceof Error ? error.message : String(error)
+    if (reportedRenderFaults.has(message)) return
+    reportedRenderFaults.add(message)
+    deps.logger?.warn("omo-dag status widget render failed; frame skipped", { error: message })
+  }
 
-  // The DAG widget renders from bare timer callbacks (the beta.20 crash stack ends at
-  // Timeout._onTimeout); contain faults here so one bad frame never kills the host process.
   function containRenderFault(run: () => void): void {
     try {
       run()
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      if (reportedRenderFaults.has(message)) return
-      reportedRenderFaults.add(message)
-      deps.logger?.warn("omo-dag status widget render failed; frame skipped", { error: message })
+      reportRenderFault(error)
     }
   }
 
@@ -108,15 +116,19 @@ export function createDagStatusUi(deps: DagStatusUiDeps): DagStatusUi {
     const ui = deps.runtime.ui()
     // TUI only: no widget surface exists outside interactive mode, so skip the work entirely there.
     if (ui === undefined || deps.runtime.mode() !== "tui") {
+      deps.interaction?.setGroup("dag", undefined, [])
       clearLiveRefresh()
       return
     }
     const runs = liveRuns()
-    const maxWidth = deps.terminalWidth?.() ?? process.stdout.columns
-    const renderedAt = now()
-    const rows = runs.flatMap((run) => runRows(run, liveActivity.get(run.runId), { maxWidth, now: renderedAt }))
     pruneActivity(runs)
-    if (rows.length === 0) {
+    const workers: InlineWorker[] = visibleDagWorkers(runs, now()).map((worker) => ({ kind: "dag", runId: worker.runId, nodeId: worker.nodeId }))
+    deps.interaction?.setGroup("dag", deps.runtime.sessionId(), workers)
+    const subscribe = ui.onTerminalInput
+    if (deps.interaction !== undefined && subscribe !== undefined) {
+      deps.interaction.bindInput((handler) => subscribe.call(ui, handler))
+    }
+    if (runs.length === 0) {
       // Blanking is only honest when nothing is live. A run the manager still lists but whose
       // snapshot could not be projected (pruned mid-read, unreadable checkpoint, a session id that
       // moved under a fork/restart - see #7316) must NOT read as "the dag finished": clearing the
@@ -132,7 +144,29 @@ export function createDagStatusUi(deps: DagStatusUiDeps): DagStatusUi {
       scheduleLiveRefresh()
       return
     }
-    ui.setWidget(DAG_STATUS_UI_KEY, rows, { placement: "belowEditor" })
+    // The rows come from the upstream agent widget, painted with the host theme at each frame. A frame
+    // that throws is contained inside the factory so the host never sees the fault.
+    const interaction = deps.interaction
+    ui.setWidget(
+      DAG_STATUS_UI_KEY,
+      (tui, theme) => {
+        interaction?.attach(tui)
+        return {
+          render: (width: number): string[] => {
+            try {
+              return renderDagInline(runs, liveActivity, theme, width, now(), {
+                ...(interaction === undefined ? {} : { decorate: dagDecorator(interaction) }),
+              })
+            } catch (error) {
+              reportRenderFault(error)
+              return []
+            }
+          },
+          invalidate: (): void => {},
+        }
+      },
+      { placement: "belowEditor" },
+    )
     if (runs.some((run) => !TERMINAL_RUN_STATUSES.has(run.status))) scheduleLiveRefresh()
     else clearLiveRefresh()
   }
@@ -218,6 +252,9 @@ export function createDagStatusUi(deps: DagStatusUiDeps): DagStatusUi {
       liveActivity.set(event.runId, perRun)
       scheduleSync()
     },
+    activity(runId, nodeId) {
+      return liveActivity.get(runId)?.get(nodeId)
+    },
     dispose() {
       if (pending !== undefined) {
         timers.clear(pending)
@@ -225,6 +262,12 @@ export function createDagStatusUi(deps: DagStatusUiDeps): DagStatusUi {
       }
       clearLiveRefresh()
       liveActivity.clear()
+      deps.interaction?.setGroup("dag", undefined, [])
     },
   }
+}
+
+// The per-row hook for a DAG worker row: the thread's run and node identify the worker to the shared menu.
+function dagDecorator(interaction: InlineInteraction): (thread: ThreadView, line: string, width: number) => string {
+  return (thread, line, width) => interaction.decorate({ kind: "dag", runId: thread.owner, nodeId: nodeIdOfPath(thread.path) }, line, width)
 }
