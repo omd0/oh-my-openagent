@@ -1,5 +1,6 @@
 // allow: SIZE_OK - register() is the remaining host-wiring graph after engine/runners/liveness splits; further cuts would scatter the register surface.
 import { loadSenpiOmoConfig } from "../config-resolution"
+import type { OmoConfig } from "@oh-my-opencode/omo-config-core"
 import {
   TEAM_LEAD_SENTINEL,
   buildLeadTeamTools,
@@ -26,8 +27,15 @@ import type { IdleInjectionCoordinator } from "../../extension/idle-injection-co
 import type { ComponentContext, OmoSenpiComponent, SenpiExtensionAPI } from "../../extension/types"
 import { createLateSendOutcomeDeliverer } from "./late-send-outcome"
 import { CATEGORY_UNAVAILABLE_MESSAGE_TYPE } from "./category-unavailable-warning"
-import { registerTaskCommands } from "./commands"
+import { registerRoutingProfileCommand, registerTaskCommands } from "./commands"
+import { createTaskSubagentWatch } from "./task-subagent-service"
+import { createWatchHolder, type WatchUi } from "./watch-mount"
+import { createDagWorkerOpener } from "./dag-worker-open"
+import { createTaskWorkerOpener } from "./task-worker-open"
+import { createInlineInteraction, type InlineWorker } from "./inline-interaction"
+import type { DagVisibleWorker } from "./dag-status-inline"
 import { registerDagCommands } from "./dag-commands"
+import type { DagWatchPort } from "./dag-subagent-service"
 import { createDagReloadSource } from "./dag-reload-source"
 import { createDagRuntime, type DagRuntime } from "./dag-runtime"
 import { registerDagTool } from "./register-workflow-tool"
@@ -51,6 +59,12 @@ import { createTaskStatusUi } from "./status-ui"
 import { missingTaskCapabilities } from "./surface"
 import { createTaskSkillLoader } from "./task-skill-loader"
 import { registerWorkpoolTool } from "./workpool-tool"
+import {
+  listTaskRoutingProfiles,
+  projectTaskRoutingConfig,
+  readTaskRoutingProfileOverride,
+  TASK_ROUTING_PROFILE_ENTRY,
+} from "./routing-profile"
 
 const TASK_ENABLED_FLAG = "omo-task"
 
@@ -103,11 +117,22 @@ export function createTaskComponent(options: TaskComponentOptions = {}): OmoSenp
 
       const cwd = options.resolveCwd?.() ?? sessionCwd(pi)
       const loaded = loadConfig({ cwd })
+      const baseConfig = loaded.config
+      const availableRoutingProfiles = listTaskRoutingProfiles(loaded)
+      const configuredRoutingProfile = baseConfig.task?.routing_profile
+      const defaultRoutingProfile = configuredRoutingProfile !== undefined &&
+        availableRoutingProfiles.includes(configuredRoutingProfile)
+        ? configuredRoutingProfile
+        : undefined
+      const startupRoutingProfile = defaultRoutingProfile ?? loaded.profile
+      const initialRoutingConfig = startupRoutingProfile === undefined
+        ? baseConfig
+        : projectTaskRoutingConfig(baseConfig, loadConfig({ cwd, profile: startupRoutingProfile }).config)
       const loadSkills = options.loadSkills ?? createTaskSkillLoader({ logger: ctx.logger })
 
       const engine = composeTaskEngine({
         pi,
-        omoConfig: loaded.config,
+        omoConfig: initialRoutingConfig,
         cwd,
         loadSkills,
         sharedParentTools: () => ctx.getCapturedTools?.() ?? [],
@@ -118,11 +143,36 @@ export function createTaskComponent(options: TaskComponentOptions = {}): OmoSenp
       pi.registerMessageRenderer?.(TEAM_MEMBER_LIVENESS_MESSAGE_TYPE, renderTeamMemberLiveness)
       pi.registerMessageRenderer?.(CATEGORY_UNAVAILABLE_MESSAGE_TYPE, renderCategoryUnavailable)
       const teamTools = createTeamToolContext(pi, ctx, engine)
+      const jobWidgetHost = await readJobWidgetHost(options.loadJobWidgetHost ?? loadJobWidgetHost, ctx)
+      const authorRoute = installJobWidgetAuthor(jobWidgetHost, cwd, engine.omoConfig, () => engine.runtime.sessionId())
       const skillInvocations = createSkillInvocationTracker(pi)
+      // One watch holder for every watch: /tasks watch, /dag watch and the inline worker rows all open
+      // through it, so only one overlay is ever open. The DAG worker opener is bound once the DAG port exists,
+      // and the inline rows reach it through this late-bound variable.
+      const watchHolder = createWatchHolder()
+      let openDagWorker: ((worker: DagVisibleWorker, ui: WatchUi) => Promise<void>) | undefined
+      let openTaskWorker: ((taskId: string, ui: WatchUi) => Promise<void>) | undefined
+      // ONE inline focus menu for the ordinary task and DAG widgets: one Alt+Down subscription, one link
+      // callback, and every open goes through the shared watch holder.
+      const inlineInteraction = createInlineInteraction({
+        open: (worker: InlineWorker) => {
+          const ui = engine.runtime.ui()
+          if (ui === undefined) return
+          const opening = worker.kind === "task"
+            ? openTaskWorker?.(worker.taskId, ui)
+            : openDagWorker?.({ runId: worker.runId, nodeId: worker.nodeId }, ui)
+          void opening?.catch((error: unknown) => {
+            ui.notify(`Could not open worker: ${error instanceof Error ? error.message : String(error)}`, "warning")
+          })
+        },
+        busy: () => watchHolder.current !== undefined,
+        sessionId: () => engine.runtime.sessionId(),
+      })
       const dagRuntime = createDagRuntime({
         pi,
         engine,
         logger: ctx.logger,
+        interaction: inlineInteraction,
         nodeSpawnPolicy: (node) =>
           evaluateSpawnPolicy(
             {
@@ -137,22 +187,102 @@ export function createTaskComponent(options: TaskComponentOptions = {}): OmoSenp
           ),
         ...(ctx.idleCoordinator === undefined ? {} : { coordinator: ctx.idleCoordinator }),
       })
-      const { forgetTaskOutputReads } = registerTaskTools(
+      const { forgetTaskOutputReads, refreshRoutingTools } = registerTaskTools(
         pi, engine, teamTools.service, teamTools.leadPollers.resolveDefaultTeamRunId,
         skillInvocations, dagRuntime, ctx.idleCoordinator,
       )
       registerTeamTools(pi, teamTools)
       registerRemovedTeamWaitHint(pi)
-      registerTaskCommands(pi, engine.manager)
-      registerDagCommands(pi, {
+      let activeRoutingProfile = startupRoutingProfile
+      const applyRoutingProfile = (profile: string | undefined): void => {
+        const nextConfig = profile === undefined
+          ? baseConfig
+          : projectTaskRoutingConfig(baseConfig, loadConfig({ cwd, profile }).config)
+        engine.setRoutingConfig(nextConfig)
+        teamTools.updateRouting(nextConfig)
+        refreshRoutingTools()
+        registerTeamTools(pi, teamTools)
+        authorRoute?.update(nextConfig)
+        activeRoutingProfile = profile
+      }
+      registerRoutingProfileCommand(pi, {
+        availableProfiles: availableRoutingProfiles,
+        currentProfile: () => activeRoutingProfile,
+        select: async (name) => {
+          if (!availableRoutingProfiles.includes(name)) return false
+          applyRoutingProfile(name)
+          pi.appendEntry?.(TASK_ROUTING_PROFILE_ENTRY, { profile: name })
+          return true
+        },
+        reset: async () => {
+          const profile = defaultRoutingProfile ?? loaded.profile
+          applyRoutingProfile(profile)
+          pi.appendEntry?.(TASK_ROUTING_PROFILE_ENTRY, { profile: null })
+        },
+      })
+      pi.on("session_start", (_payload, eventCtx) => {
+        const restored = readTaskRoutingProfileOverride(eventCtx)
+        const profile = restored.found && restored.profile !== undefined
+          ? restored.profile
+          : defaultRoutingProfile ?? loaded.profile
+        if (profile !== undefined && !availableRoutingProfiles.includes(profile)) {
+          activeRoutingProfile = loaded.profile
+          const fallbackProfile = defaultRoutingProfile ?? loaded.profile
+          applyRoutingProfile(fallbackProfile)
+          return
+        }
+        applyRoutingProfile(profile)
+      })
+      // One DAG port serves both watches: /dag watch, and the task watch's DAG-owned children, which are
+      // routed through dagRuntime.send and never through a raw task send. Built once, shared by both.
+      const dagPort: DagWatchPort = {
         list: dagRuntime.manager.list,
         snapshot: dagRuntime.manager.snapshot,
+        send: dagRuntime.send,
         taskRecord: dagRuntime.taskRecord,
+      }
+      openDagWorker = createDagWorkerOpener({
+        port: dagPort,
+        stateDir: engine.stateDir,
+        holder: watchHolder,
+        sessionId: () => engine.runtime.sessionId(),
       })
+      openTaskWorker = createTaskWorkerOpener({
+        manager: engine.manager,
+        dag: dagPort,
+        stateDir: engine.stateDir,
+        holder: watchHolder,
+        sessionId: () => engine.runtime.sessionId(),
+      })
+      registerTaskCommands(pi, engine.manager, {
+        holder: watchHolder,
+        createWatch: (parentSessionId, stillBound) =>
+          createTaskSubagentWatch({
+            manager: engine.manager,
+            dag: dagPort,
+            parentSessionId,
+            stillBound,
+            stateDir: engine.stateDir,
+          }),
+      })
+      registerDagCommands(
+        pi,
+        {
+          list: dagRuntime.manager.list,
+          snapshot: dagRuntime.manager.snapshot,
+          taskRecord: dagRuntime.taskRecord,
+        },
+        {
+          port: dagPort,
+          stateDir: engine.stateDir,
+          holder: watchHolder,
+        },
+      )
 
       const statusUi = createTaskStatusUi({
         manager: engine.manager,
         runtime: engine.runtime,
+        interaction: inlineInteraction,
         terminalWidth: () => process.stdout.columns,
         logger: ctx.logger,
       })
@@ -196,7 +326,7 @@ export function createTaskComponent(options: TaskComponentOptions = {}): OmoSenp
         (error) => ctx.logger.warn("omo-senpi DAG attach after reconcile failed", { error: String(error) }),
       )
 
-      wireJobWidgets(pi, engine, cwd, await readJobWidgetHost(options.loadJobWidgetHost ?? loadJobWidgetHost, ctx))
+      wireJobWidgets(pi, engine, jobWidgetHost, authorRoute)
     },
   }
 }
@@ -223,9 +353,13 @@ async function readJobWidgetHost(load: () => Promise<JobWidgetHostApi>, ctx: Com
 
 // The widget author writes specs on omo's `quick` category model; background tasks offer their
 // children's tool calls as widget sources. A senpi without the job-widget API leaves both unwired.
-function wireJobWidgets(pi: SenpiExtensionAPI, engine: TaskEngine, cwd: string, host: JobWidgetHostApi): void {
+function wireJobWidgets(
+  pi: SenpiExtensionAPI,
+  engine: TaskEngine,
+  host: JobWidgetHostApi,
+  authorRoute: ReturnType<typeof installJobWidgetAuthor>,
+): void {
   if (host.setAuthorResolver === undefined && host.sources === undefined) return
-  const releaseAuthor = installJobWidgetAuthor(host, cwd, engine.omoConfig)
   const feed = host.sources === undefined
     ? undefined
     : createTaskJobWidgetFeed({ sources: host.sources, manager: engine.manager, sessionId: () => engine.runtime.sessionId() })
@@ -234,7 +368,7 @@ function wireJobWidgets(pi: SenpiExtensionAPI, engine: TaskEngine, cwd: string, 
   pi.on("session_shutdown", () => {
     stopObserving?.()
     feed?.dispose()
-    releaseAuthor()
+    authorRoute()
   })
 }
 
@@ -270,13 +404,20 @@ function registerTaskTools(
   skillInvocations: SkillInvocationTracker,
   dagRuntime: DagRuntime,
   coordinator?: IdleInjectionCoordinator,
-): { forgetTaskOutputReads: (sessionId: string) => void } {
+): {
+  forgetTaskOutputReads: (sessionId: string) => void
+  refreshRoutingTools: () => void
+} {
   const resolveCallerSessionId = defaultResolveCallerSessionId
   const manager = engine.manager
-  pi.registerTool({
-    ...createTaskTool(engine.taskToolDeps((sessionId: string) => skillInvocations.stateFor(sessionId))),
-    runs: "brain",
-  })
+  const registerTaskRoutingDescription = (): void => {
+    pi.registerTool({
+      ...createTaskTool(engine.taskToolDeps((sessionId: string) => skillInvocations.stateFor(sessionId))),
+      runs: "brain",
+    })
+  }
+  const refreshWorkpoolTool = registerWorkpoolTool(pi, engine, skillInvocations, coordinator)
+  registerTaskRoutingDescription()
   pi.registerTool({
     ...createTaskSendTool({
       manager,
@@ -293,9 +434,14 @@ function registerTaskTools(
   const { forgetSession, ...outputTool } = output
   pi.registerTool({ ...outputTool, runs: "brain" })
   registerDagTool(pi, engine, dagRuntime)
-  registerWorkpoolTool(pi, engine, skillInvocations, coordinator)
   registerEvalHandleHost(pi, engine)
-  return { forgetTaskOutputReads: forgetSession }
+  return {
+    forgetTaskOutputReads: forgetSession,
+    refreshRoutingTools: () => {
+      registerTaskRoutingDescription()
+      refreshWorkpoolTool()
+    },
+  }
 }
 
 
@@ -378,7 +524,13 @@ function createTeamToolContext(
       return created
     },
   }
-  return { service, reconcileTeamMailbox: createTeamMailboxReconciler(serviceDeps), deliveryJournal, leadPollers }
+  return {
+    service,
+    reconcileTeamMailbox: createTeamMailboxReconciler(serviceDeps),
+    deliveryJournal,
+    leadPollers,
+    updateRouting: (omoConfig) => baseService.updateRouting(omoConfig, new Set(Object.keys(engine.agents))),
+  }
 }
 
 type TeamToolContext = {
@@ -386,6 +538,7 @@ type TeamToolContext = {
   readonly reconcileTeamMailbox: () => Promise<void>
   readonly deliveryJournal: LeadDeliveryJournal
   readonly leadPollers: LeadPollerLifecycle
+  readonly updateRouting: (omoConfig: OmoConfig) => void
 }
 
 function registerTeamTools(pi: SenpiExtensionAPI, context: TeamToolContext): void {

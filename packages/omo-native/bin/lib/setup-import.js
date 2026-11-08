@@ -10,6 +10,7 @@ import { dirname, relative } from "node:path"
 import { createInterface } from "node:readline/promises"
 import { canonicalAgentDir } from "./agent-dir.js"
 import { setupCoverage } from "./category-coverage.js"
+import { setupClaude } from "./setup-claude.js"
 import { applySetupStages, collectSetupPlans, scanSetup, setupStages } from "./setup-stream.js"
 import { displayPath, formatSetupSummary, TELEMETRY_NOTICE } from "./setup-summary.js"
 
@@ -47,6 +48,13 @@ export async function runSetup(args = process.argv.slice(2), options = {}) {
   const agentDir = canonicalAgentDir(env, home)
   const runtime = { stdin: process.stdin, stdout: process.stdout, ...options, home, env }
   const dryRun = args.includes("--dry-run")
+  if (args.includes("--claude")) {
+    await setupClaude(agentDir, {
+      dryRun,
+      confirm: (question) => ask(question, { ...runtime, yes: args.includes("--yes") }, false),
+    })
+    return
+  }
   // The CLI has always carried OpenCode's custom providers; the onboarding RPC leaves them opt-in.
   const { inventory, plans } = await collectSetupPlans(scanSetup(runtime, agentDir, { includeCustomProviders: true }))
   if (dryRun) process.stdout.write("DRY RUN: no files will be written\n")

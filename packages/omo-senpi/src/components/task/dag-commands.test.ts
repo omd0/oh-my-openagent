@@ -1,6 +1,13 @@
 import { describe, expect, it } from "bun:test"
 
+import { TUI, type Terminal } from "@earendil-works/pi-tui"
+import type { Theme as HostTheme } from "@code-yeongyu/senpi"
+import type { DagRunId } from "@oh-my-opencode/senpi-task/dag"
+
+import { Theme } from "../../senpi-test-runtime"
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
+import { createWatchHolder, type WatchHolder } from "./watch-mount"
+import type { DagWatchNode, DagWatchPort, DagWatchRun } from "./dag-subagent-service"
 import {
   registerDagCommands,
   type DagCommandManager,
@@ -348,5 +355,420 @@ describe("registerDagCommands", () => {
     // then
     expect(listed).toBe(0)
     expect(notifications).toEqual(["No dag runs in this session."])
+  })
+})
+
+describe("registerDagCommands /dag watch", () => {
+  // The overlay host surface as the mount seam uses it. A real TUI over an
+  // in-memory terminal: never touches stdin/stdout, writes buffer, start/stop
+  // are no-ops, dimensions fixed. The TUI itself is never started.
+  class MemoryTerminal implements Terminal {
+    private readonly chunks: string[] = []
+    start(): void {}
+    stop(): void {}
+    async drainInput(): Promise<void> {}
+    write(data: string): void {
+      this.chunks.push(data)
+    }
+    get columns(): number {
+      return 80
+    }
+    get rows(): number {
+      return 24
+    }
+    get kittyProtocolActive(): boolean {
+      return false
+    }
+    moveBy(): void {}
+    hideCursor(): void {}
+    showCursor(): void {}
+    clearLine(): void {}
+    clearFromCursor(): void {}
+    clearScreen(): void {}
+    setTitle(): void {}
+    setProgress(): void {}
+  }
+
+  const TEST_FG_COLORS = {
+    accent: "#000000",
+    bashMode: "#000000",
+    border: "#000000",
+    borderAccent: "#000000",
+    borderMuted: "#000000",
+    customMessageLabel: "#000000",
+    customMessageText: "#000000",
+    dim: "#000000",
+    error: "#000000",
+    mdCode: "#000000",
+    mdCodeBlock: "#000000",
+    mdCodeBlockBorder: "#000000",
+    mdHeading: "#000000",
+    mdHr: "#000000",
+    mdLink: "#000000",
+    mdLinkUrl: "#000000",
+    mdListBullet: "#000000",
+    mdQuote: "#000000",
+    mdQuoteBorder: "#000000",
+    muted: "#000000",
+    success: "#000000",
+    syntaxComment: "#000000",
+    syntaxFunction: "#000000",
+    syntaxKeyword: "#000000",
+    syntaxNumber: "#000000",
+    syntaxOperator: "#000000",
+    syntaxPunctuation: "#000000",
+    syntaxString: "#000000",
+    syntaxType: "#000000",
+    syntaxVariable: "#000000",
+    text: "#000000",
+    thinkingHigh: "#000000",
+    thinkingLow: "#000000",
+    thinkingMax: "#000000",
+    thinkingMedium: "#000000",
+    thinkingMinimal: "#000000",
+    thinkingOff: "#000000",
+    thinkingText: "#000000",
+    thinkingXhigh: "#000000",
+    toolDiffAdded: "#000000",
+    toolDiffContext: "#000000",
+    toolDiffRemoved: "#000000",
+    toolOutput: "#000000",
+    toolTitle: "#000000",
+    userMessageText: "#000000",
+    warning: "#000000",
+  } as const satisfies ConstructorParameters<typeof Theme>[0]
+  const TEST_BG_COLORS = {
+    customMessageBg: "#000000",
+    selectedBg: "#000000",
+    toolErrorBg: "#000000",
+    toolPendingBg: "#000000",
+    toolSuccessBg: "#000000",
+    userMessageBg: "#000000",
+  } as const satisfies ConstructorParameters<typeof Theme>[1]
+  const TEST_THEME = new Theme(TEST_FG_COLORS, TEST_BG_COLORS, "truecolor")
+
+  interface DagWatchSetup {
+    readonly pi: FakeExtensionAPI
+    readonly ctx: unknown
+    readonly holder: WatchHolder
+    readonly tui: TUI
+    readonly notifications: Array<{ message: string; type?: string }>
+    readonly selectCalls: Array<{ title: string; options: string[] }>
+    readonly snapshotCalls: Array<{ runId: string; parentSessionId: string }>
+    readonly listCalls: string[]
+    readonly customCalls: () => number
+    readonly surfaces: unknown[]
+    readonly setSessionId: (next: string) => void
+  }
+
+  function dagNode(overrides: Partial<DagWatchNode> & { id: string }): DagWatchNode {
+    return {
+      state: "running",
+      route: { kind: "category", category: "quick" },
+      dependsOn: [],
+      attempt: 1,
+      createdAt: "2026-08-14T00:00:00.000Z",
+      ...overrides,
+    }
+  }
+
+  function dagWatchSetup(
+    opts: {
+      readonly runs?: Readonly<Record<string, DagWatchRun>>
+      readonly summaries?: readonly { runId: DagRunId; name: string; status: string; parentSessionId: string }[]
+      readonly mode?: string
+      readonly holder?: WatchHolder
+      readonly select?: (title: string, options: string[]) => Promise<string | undefined>
+      readonly invokeFactory?: boolean
+    } = {},
+  ): DagWatchSetup {
+    const notifications: DagWatchSetup["notifications"] = []
+    const selectCalls: DagWatchSetup["selectCalls"] = []
+    const snapshotCalls: DagWatchSetup["snapshotCalls"] = []
+    const listCalls: string[] = []
+    const surfaces: unknown[] = []
+    let customCalls = 0
+    let sessionId = "session-a"
+    const holder = opts.holder ?? createWatchHolder()
+    const runs = opts.runs ?? {}
+    const summaries = opts.summaries ?? [{ runId: "dag_live" as DagRunId, name: "release audit", status: "running", parentSessionId: "session-a" }]
+    const port: DagWatchPort = {
+      list: (parentSessionId) => {
+        listCalls.push(parentSessionId)
+        return summaries
+          .filter((entry) => entry.parentSessionId === parentSessionId)
+          .map((entry) => ({ runId: entry.runId, name: entry.name, status: entry.status }))
+      },
+      snapshot: (runId, parentSessionId) => {
+        snapshotCalls.push({ runId, parentSessionId })
+        const run = runs[runId]
+        if (run === undefined) throw new Error(`unknown dag run "${runId}"`)
+        return run
+      },
+      send: () => Promise.resolve({ delivery: "steer" }),
+      taskRecord: () => undefined,
+    }
+    const tui = new TUI(new MemoryTerminal())
+    const fakeTheme = TEST_THEME
+    const ui = {
+      notify: (message: string, type?: "info" | "warning" | "error") => notifications.push({ message, type }),
+      select: (title: string, options: string[]) => {
+        selectCalls.push({ title, options })
+        return (opts.select ?? (() => Promise.resolve(undefined)))(title, options)
+      },
+      confirm: () => Promise.resolve(true),
+      custom: async (factory: (tui: TUI, theme: HostTheme, keys: unknown, done: (value?: unknown) => void) => unknown) => {
+        customCalls += 1
+        if (opts.invokeFactory !== true) return
+        await new Promise<void>((resolve) => {
+          const surface = factory(tui, fakeTheme, {}, () => resolve())
+          surfaces.push(surface)
+        })
+      },
+    }
+    const ctx = { mode: opts.mode ?? "tui", ui, sessionManager: { getSessionId: () => sessionId } }
+    const manager: DagCommandManager = {
+      list: (parentSessionId) =>
+        summaries
+          .filter((entry) => entry.parentSessionId === parentSessionId)
+          .map((entry) => summary({ runId: entry.runId, name: entry.name, status: entry.status, parentSessionId: entry.parentSessionId })),
+      snapshot: (runId) => {
+        const known = summaries.find((entry) => entry.runId === runId)
+        if (known === undefined) throw new Error("unknown")
+        return diamondSnapshot()
+      },
+      taskRecord: () => undefined,
+    }
+    const pi = new FakeExtensionAPI()
+    registerDagCommands(pi, manager, { port, stateDir: "test-state", holder })
+    return {
+      pi,
+      ctx,
+      holder,
+      tui,
+      notifications,
+      selectCalls,
+      snapshotCalls,
+      listCalls,
+      customCalls: () => customCalls,
+      surfaces,
+      setSessionId: (next) => {
+        sessionId = next
+      },
+    }
+  }
+
+  function liveRun(): DagWatchRun {
+    return {
+      runId: "dag_live" as DagRunId,
+      name: "release audit",
+      status: "running",
+      nodes: [dagNode({ id: "seed", label: "collect inputs", state: "completed" })],
+    }
+  }
+
+  it("#given no watch wiring #when /dag watch runs #then it refuses without listing runs", async () => {
+    // given a read-only /dag with no watch deps
+    const pi = new FakeExtensionAPI()
+    registerDagCommands(pi, fakeManager([]))
+    const { ctx, ui } = commandCtx("session-a")
+
+    // when
+    await invoke(pi, "watch", ctx)
+
+    // then
+    expect(ui.notifications).toHaveLength(1)
+    expect(ui.notifications[0]?.message).toBe("Live watching is not available in this session.")
+    expect(ui.notifications[0]?.type).toBe("warning")
+  })
+
+  it("#given a non-interactive mode #when /dag watch runs #then it points at the read-only tree", async () => {
+    // given
+    const setup = dagWatchSetup({ mode: "rpc", runs: { dag_live: liveRun() } })
+
+    // when
+    await invoke(setup.pi, "watch", setup.ctx)
+
+    // then
+    expect(setup.notifications).toEqual([
+      { message: "Live watching needs the interactive terminal UI. Use /dag <runId> for the read-only node tree.", type: "info" },
+    ])
+    expect(setup.customCalls()).toBe(0)
+  })
+
+  it("#given an open watch #when /dag watch runs #then the second open is refused", async () => {
+    // given the shared holder already holds a watch
+    const setup = dagWatchSetup({ holder: { current: { close: () => undefined } }, runs: { dag_live: liveRun() } })
+
+    // when
+    await invoke(setup.pi, "watch dag_live", setup.ctx)
+
+    // then
+    expect(setup.notifications).toEqual([{ message: "A dag watch is already open.", type: "info" }])
+    expect(setup.customCalls()).toBe(0)
+    expect(setup.snapshotCalls).toHaveLength(0)
+  })
+
+  it("#given two run ids #when /dag watch runs #then it prints usage and reads nothing", async () => {
+    // given
+    const setup = dagWatchSetup({ runs: { dag_live: liveRun() } })
+
+    // when
+    await invoke(setup.pi, "watch a b", setup.ctx)
+
+    // then
+    expect(setup.notifications).toEqual([
+      { message: "Usage: /dag watch [runId]. Pass one run id, or none to pick a live run.", type: "warning" },
+    ])
+    expect(setup.snapshotCalls).toHaveLength(0)
+    expect(setup.customCalls()).toBe(0)
+  })
+
+  it("#given an unknown run id #when /dag watch runs #then it refuses and every read stays in this session", async () => {
+    // given only this session's live run is listed
+    const setup = dagWatchSetup({ runs: { dag_live: liveRun() } })
+
+    // when
+    await invoke(setup.pi, "watch dag_nope", setup.ctx)
+
+    // then
+    expect(setup.notifications).toEqual([{ message: 'No dag run "dag_nope" in this session.', type: "warning" }])
+    expect(setup.listCalls).toEqual(["session-a"])
+    expect(setup.customCalls()).toBe(0)
+  })
+
+  it("#given a run id from another session #when /dag watch runs #then it is refused like an unknown id", async () => {
+    // given the other session's run never appears in this session's list
+    const setup = dagWatchSetup({
+      runs: { dag_live: liveRun() },
+      summaries: [
+        { runId: "dag_live" as DagRunId, name: "release audit", status: "running", parentSessionId: "session-a" },
+        { runId: "dag_foreign" as DagRunId, name: "foreign", status: "running", parentSessionId: "session-b" },
+      ],
+    })
+
+    // when
+    await invoke(setup.pi, "watch dag_foreign", setup.ctx)
+
+    // then the same refusal as an unknown id, with no cross-session read
+    expect(setup.notifications).toEqual([{ message: 'No dag run "dag_foreign" in this session.', type: "warning" }])
+    expect(setup.snapshotCalls).toHaveLength(0)
+    expect(setup.customCalls()).toBe(0)
+  })
+
+  it("#given only terminal runs #when /dag watch runs without an id #then the picker is refused", async () => {
+    // given
+    const setup = dagWatchSetup({
+      runs: {},
+      summaries: [{ runId: "dag_done" as DagRunId, name: "nightly", status: "completed", parentSessionId: "session-a" }],
+    })
+
+    // when
+    await invoke(setup.pi, "watch", setup.ctx)
+
+    // then
+    expect(setup.notifications).toEqual([
+      { message: "No live dag runs in this session. For ordinary task subagents use /tasks watch. /dag lists runs.", type: "info" },
+    ])
+    expect(setup.customCalls()).toBe(0)
+  })
+
+  it("#given live runs #when /dag watch runs without an id #then the picker lists live runs and the choice mounts", async () => {
+    // given a live run and a finished one (the picker must offer only the live one)
+    const setup = dagWatchSetup({
+      runs: { dag_live: liveRun() },
+      summaries: [
+        { runId: "dag_live" as DagRunId, name: "release audit", status: "running", parentSessionId: "session-a" },
+        { runId: "dag_done" as DagRunId, name: "nightly", status: "completed", parentSessionId: "session-a" },
+      ],
+      select: (_title, options) => Promise.resolve(options[0]),
+    })
+
+    // when
+    await invoke(setup.pi, "watch", setup.ctx)
+
+    // then the picker named the live run with its status, and the mount was released afterwards
+    expect(setup.selectCalls).toHaveLength(1)
+    expect(setup.selectCalls[0]?.options).toEqual(["release audit (dag_live) running"])
+    expect(setup.customCalls()).toBe(1)
+    expect(setup.holder.current).toBeUndefined()
+  })
+
+  it("#given a dismissed picker #when /dag watch runs #then nothing mounts and the slot is released", async () => {
+    // given the user escapes the run picker
+    const setup = dagWatchSetup({ runs: { dag_live: liveRun() }, select: () => Promise.resolve(undefined) })
+
+    // when
+    await invoke(setup.pi, "watch", setup.ctx)
+
+    // then
+    expect(setup.selectCalls).toHaveLength(1)
+    expect(setup.customCalls()).toBe(0)
+    expect(setup.holder.current).toBeUndefined()
+    expect(setup.notifications).toHaveLength(0)
+  })
+
+  it("#given a picker in flight #when a second /dag watch runs #then it is refused until the picker settles", async () => {
+    // given a picker that stays open
+    let resolveSelect!: (choice: string | undefined) => void
+    const gate = new Promise<string | undefined>((resolve) => {
+      resolveSelect = resolve
+    })
+    const setup = dagWatchSetup({ runs: { dag_live: liveRun() }, select: () => gate })
+    const first = invoke(setup.pi, "watch", setup.ctx)
+    await Promise.resolve()
+
+    // when a second watch arrives while the slot is held
+    await invoke(setup.pi, "watch dag_live", setup.ctx)
+
+    // then it is refused and the first still owns the slot
+    expect(setup.notifications).toEqual([{ message: "A dag watch is already open.", type: "info" }])
+    expect(setup.holder.current).toBeDefined()
+
+    // and settling the picker releases the slot without mounting
+    resolveSelect(undefined)
+    await first
+    expect(setup.holder.current).toBeUndefined()
+    expect(setup.customCalls()).toBe(0)
+  })
+
+  it("#given a session change during the picker #when it settles #then nothing scoped to the old session mounts", async () => {
+    // given the session switches while the picker is open
+    const setup = dagWatchSetup({
+      runs: { dag_live: liveRun() },
+      select: (_title, options) => {
+        setup.setSessionId("session-b")
+        return Promise.resolve(options[0])
+      },
+    })
+
+    // when
+    await invoke(setup.pi, "watch", setup.ctx)
+
+    // then the choice from the old session is dropped
+    expect(setup.customCalls()).toBe(0)
+    expect(setup.holder.current).toBeUndefined()
+    expect(setup.notifications).toHaveLength(0)
+  })
+
+  it("#given an open dag watch #when the session shuts down #then the watch closes and the holder is released", async () => {
+    // given a mounted watch backed by a real surface
+    const setup = dagWatchSetup({
+      runs: { dag_live: liveRun() },
+      select: (_title, options) => Promise.resolve(options[0]),
+      invokeFactory: true,
+    })
+    const opened = invoke(setup.pi, "watch dag_live", setup.ctx)
+    for (let i = 0; i < 1000 && setup.surfaces.length === 0; i++) await Promise.resolve()
+    expect(setup.surfaces).toHaveLength(1)
+    expect(setup.holder.current).toBeDefined()
+
+    // when the session shuts down
+    await setup.pi.dispatch("session_shutdown", {})
+    await opened
+
+    // then the close propagates and the holder is free for the next session
+    expect(setup.holder.current).toBeUndefined()
+    setup.tui.stop()
   })
 })

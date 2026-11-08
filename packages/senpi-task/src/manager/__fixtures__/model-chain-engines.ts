@@ -3,8 +3,9 @@ import { copyFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 
+import { loadSenpiBarrel, senpiProbeHost, senpiRpcClient } from "../../lazy/senpi-barrel"
 import { RpcHostRunner } from "../../runners/rpc-host"
-import { HostSessionClient } from "../../runners/rpc-host/session-client"
+import { HostSessionClient, type HostSessionClientPorts } from "../../runners/rpc-host/session-client"
 import { shortSocketDir } from "../../runners/rpc-host/short-socket-dir.test-support"
 import { buildRpcSpawn } from "../../runners/rpc/spawn"
 import { RpcProcessRunner } from "../../runners/rpc-process"
@@ -88,9 +89,32 @@ function processEngine(env: Readonly<Record<string, string>>): Engine {
   }
 }
 
+/**
+ * Ports for a host session whose client and protocol probe both read the endpoint key record the host
+ * published. Each call resolves a key root, and the default root is the ambient agent dir (under the
+ * test preload, the hermetic home), which never holds THIS host's launch record, so the fixture pins
+ * the host's own agent dir: an enforcing host refuses a keyless client instead of admitting it on grace.
+ */
+async function hostSessionPorts(keyRoot: string): Promise<HostSessionClientPorts> {
+  await loadSenpiBarrel()
+  const RpcClient = senpiRpcClient()
+  const probeHost = senpiProbeHost()
+  return {
+    createClient: async (options) => new RpcClient({ socketPath: options.socketPath, onDisconnect: options.onDisconnect, keyRoot }),
+    probeProtocolInfo: (socketPath) => {
+      // The probe port type predates the engine's `keyRoot` option; the same argument object carries it.
+      const input = { socket: socketPath, keyRoot }
+      return probeHost(input)
+    },
+  }
+}
+
 async function hostEngine(root: string, engineEnv: Readonly<Record<string, string>>): Promise<Engine> {
   // A socket host advertises `extension_events` (a capability omo requires of a task host) only for this client set.
-  const env = { ...engineEnv, SENPI_RPC_CLIENT_CAPABILITIES: "extension_events" }
+  // `SENPI_RPC_REQUIRE_TOKEN` makes the host enforce its endpoint key, so a client that reads the wrong
+  // key root is refused instead of being served on the deprecated unauthenticated grace path.
+  const env = { ...engineEnv, SENPI_RPC_CLIENT_CAPABILITIES: "extension_events", SENPI_RPC_REQUIRE_TOKEN: "1" }
+  const ports = await hostSessionPorts(engineEnv["SENPI_CODING_AGENT_DIR"])
   const { dir: socketDir, socket } = shortSocketDir("model-chain-host", "h.sock")
   const rpcEntry = fileURLToPath(import.meta.resolve("@code-yeongyu/senpi/rpc-entry"))
   const host = spawn(
@@ -111,7 +135,7 @@ async function hostEngine(root: string, engineEnv: Readonly<Record<string, strin
   const clients: HostSessionClient[] = []
   const runner = new RpcHostRunner({
     createClient: (socketPath) => {
-      const client = new HostSessionClient({ socketPath })
+      const client = new HostSessionClient({ socketPath, ports })
       clients.push(client)
       return client
     },

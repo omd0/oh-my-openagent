@@ -1,6 +1,6 @@
 # omo-ai Publishing Runbook
 
-`omo-ai` is the npm package for OmO Native. It ships a single bin, `omo`, which launches the exact-pinned `@code-yeongyu/senpi` release with the full OMO extension loaded. This runbook records the registry state the package was bootstrapped into, how a release picks its channel, and the checks a maintainer runs around each release.
+`omo-ai` is the npm package for OmO Native. It ships two command names, `omo` and `pi`, pointing to the same launcher. Both launch the exact-pinned `@code-yeongyu/senpi` release with the full OMO extension loaded. This runbook records the registry state the package was bootstrapped into, how a release picks its channel, and the checks a maintainer runs around each release.
 
 The package publishes exclusively through GitHub Actions (`publish.yml`) with npm OIDC trusted publishing. There is no local publish path, and this document must never grow one.
 
@@ -89,6 +89,12 @@ Requires an engine release that understands `SENPI_BRAND`; the pin in `packages/
 must point at that release or newer.
 
 ## Install and upgrade order (EEXIST)
+
+The `pi` alias belongs to `omo-ai`, not the root OpenCode/Codex package. It forwards arguments unchanged and keeps OmO's brand and canonical agent directory. Installing it does not merge upstream Pi's settings or promise compatibility with every third-party extension.
+
+A global Pi or Senpi installation may already own `<prefix>/bin/pi` (or a `pi.cmd`/`pi.ps1` shim on Windows). npm can refuse installation with `EEXIST` rather than overwrite another package's command. Check the owner and either remove that package before installing `omo-ai`, choose a separate prefix, or keep using `omo` explicitly. Do not use `--force` to take over a foreign command. Uninstalling the old package afterwards may unlink a shared command name, so resolve ownership before installation.
+
+The standalone download and sibling-store installers do not take over an unrelated `pi` path. They report the collision and keep `omo` usable. Standalone receipts retain `binPath` for `omo` and record `piPath` only for an installed alias. Removing OmO must not remove an unrelated Pi launcher.
 
 Machines that still carry a pre-rename root package (oh-my-openagent or oh-my-opencode at 4.19.4 or earlier) have a global `omo` bin shim from that package. `latest` is still 4.19.4, so this is the state of every machine that never moved to the 5.x beta. Two ways it breaks:
 

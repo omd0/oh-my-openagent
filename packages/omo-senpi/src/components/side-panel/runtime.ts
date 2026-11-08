@@ -35,6 +35,10 @@ import {
 } from "./regular-mode-notice"
 import { buildAgentCardRows } from "./sections/agents"
 import { buildMemoryDetailRows } from "./sections/memory"
+import { dagRowCap, type DagColumnInput } from "./sections/dag"
+import { createDagBinding, type DagBinding } from "./dag-binding"
+import { openDagOverlay, runDagCommand as runDagOverlayCommand } from "./dag-overlay-open"
+import { boundedGitExec } from "./git/bounded-exec"
 import type { PanelGitStatus } from "./sections/files"
 import { buildPanelRows } from "./rows"
 import { createPanelStore } from "./store"
@@ -83,6 +87,8 @@ export interface SidePanelRuntimeOptions {
   }
   /** Where the regular-mode notice claim marker lives; injected so tests never touch a real install. */
   readonly regularNoticeStateDir?: string
+  /** Terminal height for sizing the DAG graph; absent or unknown keeps the full row cap. Injectable for tests. */
+  readonly terminalRows?: () => number | undefined
 }
 
 const globalTimers: PanelTimers = {
@@ -99,6 +105,7 @@ export interface SidePanelController {
   input(): undefined
   teardown(): undefined
   runDiffCommand(commandCtx: PanelCommandContext): Promise<void>
+  runDagCommand(commandCtx: PanelCommandContext): Promise<void>
 }
 
 /**
@@ -119,19 +126,19 @@ export function createSidePanelController(
   const store = createPanelStore(now)
   const readTaskRecords = options.readTaskRecords ?? createRecordReader()
   const readChildOutput = options.readChildOutput ?? createChildOutputReader()
+  // Read per paint: a resize changes the graph budget on the next frame, with no host seam needed.
+  const readTerminalRows = options.terminalRows ?? (() => process.stdout.rows)
   const readGoal = options.readGoal ?? createPanelGoalReader()
   const resolveMemory = options.resolveMemory ?? defaultResolveMemory
   const readMemory = options.readMemory ?? createPanelMemoryReader()
   const locateGit = options.findGitRoot ?? findGitRoot
   const branchOf = options.readGitBranch ?? readGitBranch
-  // Bound to the host so the method keeps its own receiver, the way the memory palace
-  // command reaches `ctx.exec`.
+  // Preserve feature detection for hosts without exec, but do not use the host's unbounded
+  // stdout accumulator for panel reads. Callers can still inject the existing seam.
   const hostExec = pi.exec
   const exec: PanelExec | undefined =
     options.exec ??
-    (hostExec === undefined
-      ? undefined
-      : (command, args, execOptions) => hostExec.call(pi, command, args, execOptions))
+    (hostExec === undefined ? undefined : boundedGitExec)
   let git: PanelGitStatus | undefined
   let gitRoot: string | undefined
   let branch: string | undefined
@@ -141,6 +148,10 @@ export function createSidePanelController(
   let epoch = 0
 
   let surface: PanelHostSurface | undefined
+  // The DAG connection is per mounted session: created on start, disposed on teardown.
+  let dag: DagBinding | undefined
+  // Changes expansion is per session: a new session, a switch or a shutdown starts it collapsed.
+  let filesExpanded = false
   let usage: UsageSource | undefined
   let hostUi: PanelUi | undefined
   let goal: PanelGoal | undefined
@@ -168,8 +179,16 @@ export function createSidePanelController(
     return undefined
   }
 
+  // A running child or a running DAG node both need the one-second repaint that keeps elapsed time moving.
   const anyChildRunning = (): boolean =>
-    store.state().children.some((child) => child.status === "running" || child.status === "queued")
+    store.state().children.some((child) => child.status === "running" || child.status === "queued") ||
+    dag?.hasLive() === true
+
+  // The DAG rows exist only in the fullscreen column; a widget block keeps the existing flat widget.
+  const dagPart = (enabled: boolean): { readonly dag?: DagColumnInput } => {
+    if (!enabled || dag === undefined || surface?.kind() !== "column") return {}
+    return { dag: { runs: dag.runs(), activity: dag.activity, now: now(), rowCap: dagRowCap(readTerminalRows()) } }
+  }
 
   const stopLiveRefresh = (): void => {
     if (liveTimer === undefined) return
@@ -251,8 +270,21 @@ export function createSidePanelController(
    * viewer, so there is exactly one place that knows what a row means.
    */
   const openAction = async (action: PanelAction): Promise<void> => {
+    // Expansion is a view change inside the column, not a viewer: the view starts at its top so the
+    // heading and the Show less row are on screen.
+    if (action.kind === "files-more" || action.kind === "files-less") {
+      filesExpanded = action.kind === "files-more"
+      surface?.resetScroll()
+      surface?.requestRender()
+      return
+    }
     const ui = hostUi
     if (ui === undefined) return
+    if (action.kind === "dag-run" || action.kind === "dag-node") {
+      if (dag === undefined) return
+      await openDagOverlay(ui, dag, now, action.kind === "dag-run" ? { runId: action.runId } : { runId: action.runId, nodeId: action.nodeId })
+      return
+    }
     if (action.kind === "file") {
       const status = git
       if (status === undefined || exec === undefined) return
@@ -290,6 +322,8 @@ export function createSidePanelController(
   const refresh = async (eventCtx: unknown): Promise<undefined> => {
     if (surface === undefined) return undefined
     facts = { ...facts, ...panelFactsFrom(eventCtx) }
+    // A session can learn its id after start; the binding follows it without resubscribing when unchanged.
+    dag?.bind(facts.sessionId)
     // senpi publishes no goal event an extension can subscribe to, so the store is re-read on
     // the ordinary refresh; an unchanged file costs one stat and nothing more.
     if (active?.sections.goal === true) goal = readGoal(facts.goalStoreFile)
@@ -305,6 +339,10 @@ export function createSidePanelController(
   const teardown = (): undefined => {
     epoch += 1
     stopLiveRefresh()
+    // Disposed first: the pending repaint and the feed subscription must not outlive this session.
+    dag?.dispose()
+    dag = undefined
+    filesExpanded = false
     usage?.stop()
     usage = undefined
     surface?.dispose()
@@ -332,9 +370,20 @@ export function createSidePanelController(
     }
     facts = panelFactsFrom(eventCtx)
     active = settings
+    filesExpanded = false
     if (settings.sections.goal) goal = readGoal(facts.goalStoreFile)
     startedAt = now()
     hostUi = context.ui
+    if (settings.sections.dag) {
+      dag = createDagBinding({
+        timers,
+        onChange: () => {
+          surface?.requestRender()
+          scheduleLiveRefresh()
+        },
+      })
+      dag.bind(facts.sessionId)
+    }
     surface = createPanelHostSurface({
       context,
       source: {
@@ -349,10 +398,15 @@ export function createSidePanelController(
               now: now(),
               toolRows: TOOL_VISIBLE_ROWS,
               fileRows: FILE_VISIBLE_ROWS,
+              // Expansion is session state, but it only takes effect where its Show less control exists.
+              // A mode switch to the widget keeps the stored flag and shows the compact list until the column returns.
+              filesExpanded: filesExpanded && settings.clickable && surface?.kind() === "column",
+              filesExpandable: settings.clickable && surface?.kind() === "column",
               ...(git === undefined ? {} : { git }),
               ...(goal === undefined ? {} : { goal }),
               ...(memory === undefined ? {} : { memory }),
               ...(usage === undefined ? {} : { usage: usage.snapshot() }),
+              ...dagPart(settings.sections.dag),
               home: homedir(),
             },
             width,
@@ -427,6 +481,8 @@ export function createSidePanelController(
     teardown,
     runDiffCommand: (commandCtx) =>
       runDiffCommand({ status: () => git, exec, mounted: () => surface !== undefined }, commandCtx),
+    runDagCommand: (commandCtx) =>
+      runDagOverlayCommand({ binding: () => dag, now, mounted: () => surface !== undefined }, commandCtx),
   }
 }
 

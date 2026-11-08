@@ -29,13 +29,29 @@ export interface LiveTaskContext extends EngineRunHoldContext {
 // The slice of senpi's ExtensionUIContext the task component drives (setStatus/setWidget power the
 // footer + below-editor widget, select/confirm power /task-kill, notify powers headless-safe warnings).
 // senpi's real ExtensionUIContext satisfies this structurally.
+// A themed widget body: the host calls it with the active theme and paints what render() returns.
+export type WidgetFactory = (tui: unknown, theme: import("@code-yeongyu/senpi").Theme) => {
+  render(width: number): string[]
+  invalidate(): void
+  dispose?(): void
+}
+
 export interface CapturedUi {
   notify(message: string, type?: "info" | "warning" | "error"): void
   setStatus(key: string, text: string | undefined): void
   // senpi#2471: absent on engines before it, so the footer simply shows no subagent figure there.
   setSubagentCost?(costUsd: number | undefined): void
-  setWidget(key: string, content: string[] | undefined, options?: { placement?: "belowEditor" | "aboveEditor" }): void
+  // Rows, or a themed component factory (the host hands it the active theme), as the side panel and the
+  // upstream agent widget use. A factory is only needed where the rows are colour-coded.
+  setWidget(key: string, content: string[] | WidgetFactory | undefined, options?: { placement?: "belowEditor" | "aboveEditor" }): void
   select(title: string, options: string[], opts?: { signal?: unknown; timeout?: number }): Promise<string | undefined>
+  // Raw terminal input, interactive mode only. The handler can consume a sequence; returns an unsubscribe.
+  onTerminalInput?(handler: (data: string) => { consume?: boolean; data?: string } | undefined): () => void
+  // Overlay mount for the upstream watch screens, interactive mode only.
+  custom?(
+    factory: (tui: import("@earendil-works/pi-tui").TUI, theme: import("@code-yeongyu/senpi").Theme, keybindings: unknown, done: (value?: unknown) => void) => unknown,
+    options?: Record<string, unknown>,
+  ): Promise<unknown>
   confirm(title: string, message: string, opts?: { signal?: unknown; timeout?: number }): Promise<boolean>
 }
 

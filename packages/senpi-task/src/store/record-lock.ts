@@ -38,7 +38,7 @@ const sleeper = new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMEN
 
 export function withTaskRecordLock<T>(recordPath: string, operation: () => T, options: TaskRecordLockOptions = {}): T {
   const lockPath = `${recordPath}.lock`
-  mkdirSync(dirname(lockPath), { recursive: true })
+  mkdirSync(dirname(lockPath), { recursive: true, mode: 0o700 })
   const token = acquireLock(lockPath, options.holderWaitMs ?? LOCK_HOLDER_WAIT_MS)
   try {
     return operation()
@@ -58,7 +58,7 @@ export async function withTaskRecordLockAsync<T>(
   options: TaskRecordLockOptions = {},
 ): Promise<T> {
   const lockPath = `${recordPath}.lock`
-  mkdirSync(dirname(lockPath), { recursive: true })
+  mkdirSync(dirname(lockPath), { recursive: true, mode: 0o700 })
   const token = await acquireLockAsync(lockPath, options.holderWaitMs ?? LOCK_HOLDER_WAIT_MS)
   const heartbeat = setInterval(() => refreshLock(lockPath), LOCK_STALE_MS / 2)
   heartbeat.unref()

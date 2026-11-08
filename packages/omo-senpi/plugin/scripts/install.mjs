@@ -2,13 +2,13 @@
 // @bun
 
 // packages/omo-senpi/src/install/cli-local.ts
-import { existsSync as existsSync4, readFileSync as readFileSync2 } from "fs";
+import { existsSync as existsSync3, readFileSync as readFileSync2 } from "fs";
 import { dirname as dirname5, join as join6, resolve as resolve5 } from "path";
 import { fileURLToPath as fileURLToPath2 } from "url";
 
 // packages/omo-senpi/src/install/install-senpi.ts
 import { execFile } from "node:child_process";
-import { existsSync as existsSync3 } from "node:fs";
+import { existsSync as existsSync2 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
 import { dirname as dirname4, join as join5, resolve as resolve4 } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -40,7 +40,7 @@ function resolveAgentHome(options) {
   return join(homeDir, ".senpi", "agent");
 }
 // packages/omo-senpi/src/install/local-launcher.ts
-import { chmodSync, existsSync as existsSync2, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir as homedir2 } from "node:os";
 import { dirname, join as join2, resolve as resolve2 } from "node:path";
 
@@ -49,11 +49,15 @@ var OMO_BRAND_LOGO = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53
 
 // packages/omo-senpi/src/install/local-launcher.ts
 var MARKER = "omo-local-launcher";
+var COMMANDS = ["omo", "pi"];
 function localLauncherPath(homeDir = homedir2()) {
   return join2(homeDir, ".local", "bin", "omo");
 }
-function localLauncherCmdPath(homeDir = homedir2()) {
-  return join2(homeDir, ".local", "bin", "omo.cmd");
+function localCommandPath(command, homeDir) {
+  return join2(homeDir, ".local", "bin", command);
+}
+function localCommandCmdPath(command, homeDir) {
+  return join2(homeDir, ".local", "bin", `${command}.cmd`);
 }
 function releaseChannel(version) {
   return version !== undefined && version.includes("-") ? "beta" : "latest";
@@ -127,30 +131,84 @@ child.on("close", (code, signal) => {
 `;
 }
 function installLocalLauncher(options) {
-  const path = localLauncherPath(options.homeDir);
-  if (existsSync2(path) && !readFileSync(path, "utf8").includes(MARKER))
-    return;
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, renderLocalLauncher(options));
-  chmodSync(path, 493);
-  if ((options.platform ?? process.platform) === "win32") {
-    writeFileSync(localLauncherCmdPath(options.homeDir), `@echo off\r
-node "%~dp0omo" %*\r
+  const homeDir = options.homeDir ?? homedir2();
+  const windows = (options.platform ?? process.platform) === "win32";
+  let omoInstalled = false;
+  for (const command of COMMANDS) {
+    const path = localCommandPath(command, homeDir);
+    const commandOwned = isOwnedCommand(path);
+    if (!canWriteOwnedCommand(path)) {
+      console.warn(`omo: refusing to replace foreign local launcher at ${path}`);
+      continue;
+    }
+    const cmdPath = localCommandCmdPath(command, homeDir);
+    const legacyOmoWrapperOwned = command === "omo" && commandOwned && isLegacyOmoCmdWrapper(cmdPath);
+    if (windows && !canWriteOwnedCommand(cmdPath, true) && !legacyOmoWrapperOwned) {
+      console.warn(`omo: refusing to replace foreign local launcher wrapper at ${cmdPath}`);
+      continue;
+    }
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, renderLocalLauncher(options));
+    chmodSync(path, 493);
+    if (windows) {
+      writeFileSync(cmdPath, `@echo off\r
+rem ${MARKER}\r
+node "%~dp0${command}" %*\r
 `);
+    }
+    if (command === "omo")
+      omoInstalled = true;
   }
-  return path;
+  return omoInstalled ? localLauncherPath(homeDir) : undefined;
 }
 function uninstallLocalLauncher(homeDir = homedir2()) {
-  const path = resolve2(localLauncherPath(homeDir));
-  if (!existsSync2(path))
+  let removed = false;
+  for (const command of COMMANDS) {
+    const path = resolve2(localCommandPath(command, homeDir));
+    const commandOwned = isOwnedCommand(path);
+    const cmdPath = localCommandCmdPath(command, homeDir);
+    const wrapperOwned = isOwnedCommand(cmdPath, true) || command === "omo" && commandOwned && isLegacyOmoCmdWrapper(cmdPath);
+    if (commandOwned) {
+      rmSync(path);
+      removed = true;
+    }
+    if (wrapperOwned) {
+      rmSync(cmdPath);
+      removed = true;
+    }
+  }
+  return removed;
+}
+function canWriteOwnedCommand(path, wrapper = false) {
+  try {
+    const stats = lstatSync(path);
+    return stats.isFile() && isOwnedCommand(path, wrapper);
+  } catch (error) {
+    if (error.code === "ENOENT")
+      return true;
     return false;
-  if (!readFileSync(path, "utf8").includes(MARKER))
+  }
+}
+function isLegacyOmoCmdWrapper(path) {
+  try {
+    const stats = lstatSync(path);
+    return stats.isFile() && readFileSync(path, "utf8") === `@echo off\r
+node "%~dp0omo" %*\r
+`;
+  } catch {
     return false;
-  rmSync(path);
-  const cmd = localLauncherCmdPath(homeDir);
-  if (existsSync2(cmd))
-    rmSync(cmd);
-  return true;
+  }
+}
+function isOwnedCommand(path, wrapper = false) {
+  try {
+    const stats = lstatSync(path);
+    if (!stats.isFile())
+      return false;
+    const source = readFileSync(path, "utf8");
+    return wrapper ? source.includes(`rem ${MARKER}`) : source.includes(MARKER);
+  } catch {
+    return false;
+  }
 }
 
 // packages/omo-senpi/src/install/plugin-artifacts.ts
@@ -524,7 +582,7 @@ function findRepoRoot(importerDir) {
   throw new Error("Unable to locate packages/omo-senpi/plugin/package.json from installer module");
 }
 function fileExistsSync(path) {
-  return existsSync3(path);
+  return existsSync2(path);
 }
 
 // packages/omo-senpi/src/install/cli-local.ts
@@ -554,12 +612,12 @@ function resolvePackagedPluginPath(importerUrl) {
   const scriptDir = dirname5(fileURLToPath2(importerUrl));
   const candidate = resolve5(scriptDir, "..");
   const manifestPath = join6(candidate, "package.json");
-  if (!existsSync4(manifestPath))
+  if (!existsSync3(manifestPath))
     return;
   const parsed = JSON.parse(readFileSync2(manifestPath, "utf8"));
   if (!isRecord2(parsed) || parsed.name !== "@code-yeongyu/omo-senpi")
     return;
-  if (!existsSync4(join6(candidate, "extensions", "omo.js")))
+  if (!existsSync3(join6(candidate, "extensions", "omo.js")))
     return;
   return candidate;
 }

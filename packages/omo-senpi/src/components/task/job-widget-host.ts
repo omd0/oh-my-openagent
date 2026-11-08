@@ -47,6 +47,7 @@ export interface JobWidgetSourceRegistration {
 
 export interface JobWidgetAuthorContext {
   readonly cwd: string
+  readonly sessionManager?: { getSessionId(): string }
   readonly modelRegistry: {
     readonly getAvailable: () => unknown
     readonly find: (provider: string, modelId: string) => unknown

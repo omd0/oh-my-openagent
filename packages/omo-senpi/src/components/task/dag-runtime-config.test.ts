@@ -13,10 +13,11 @@ import {
 import * as dagEngine from "@oh-my-opencode/senpi-task/dag"
 
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
-import { composeTaskEngine } from "./engine"
+import { composeTaskEngine, type TaskEngine } from "./engine"
 import { createTeamServiceTestModelRegistry } from "./team-service-test-model-registry"
 
 const cleanupRoots: string[] = []
+const engines: TaskEngine[] = []
 
 function deferred<T>() {
   let resolve = (_value: T): void => undefined
@@ -41,11 +42,13 @@ function within<T>(promise: Promise<T>, label: string, ms = 300): Promise<T> {
 }
 
 class ControlledRunner implements ManagedRunner {
+  starts = 0
   readonly started = deferred<void>()
   readonly startReleased = deferred<void>()
   readonly outcome = deferred<RunnerOutcome>()
 
   async start(spec: ManagedStartSpec): Promise<ManagedChildHandle> {
+    this.starts += 1
     this.started.resolve()
     await this.startReleased.promise
     return {
@@ -64,6 +67,7 @@ class ControlledRunner implements ManagedRunner {
 }
 
 afterEach(() => {
+  for (const engine of engines.splice(0)) engine.lifecycle.dispose?.()
   for (const root of cleanupRoots.splice(0)) fs.rmSync(root, { recursive: true, force: true })
 })
 
@@ -97,6 +101,7 @@ describe("assembled DAG runtime configuration", () => {
       sharedParentTools: () => [],
       runnerFactories: { inProcess: () => runner, process: () => runner },
     })
+    engines.push(engine)
     const sessionId = "session-configured-ring"
     engine.runtime.captureFrom({ modelRegistry: createTeamServiceTestModelRegistry(), sessionManager: { getSessionId: () => sessionId } })
     const runtime = createDagRuntime({
@@ -137,6 +142,67 @@ describe("assembled DAG runtime configuration", () => {
       0,
       { limit: 100 },
     ).events).toContainEqual(overflow)
+    runtime.dispose()
+  })
+
+  test("#given an agent the current routing does not know #when the engine routing learns it #then the earlier run failed without a child and the later run completes", async () => {
+    // given
+    const cwd = fs.mkdtempSync(join(tmpdir(), "omo-senpi-dag-routing-live-"))
+    cleanupRoots.push(cwd)
+    const { createDagRuntime } = await import("./dag-runtime")
+    const runner = new ControlledRunner()
+    const pi = new FakeExtensionAPI()
+    const baseConfig = loadOmoConfig({ cwd }).config
+    const engine = composeTaskEngine({
+      pi,
+      omoConfig: baseConfig,
+      cwd,
+      sharedParentTools: () => [],
+      runnerFactories: { inProcess: () => runner, process: () => runner },
+    })
+    engines.push(engine)
+    const sessionId = "session-routing-live"
+    engine.runtime.captureFrom({ modelRegistry: createTeamServiceTestModelRegistry(), sessionManager: { getSessionId: () => sessionId } })
+    const runtime = createDagRuntime({
+      pi,
+      engine,
+      logger: { info: () => undefined, warn: () => undefined, error: () => undefined },
+    })
+    await runtime.attach()
+    const definition = (key: string) => ({
+      key,
+      name: key,
+      nodes: [{ id: "custom", prompt: "custom work", subagent_type: "custom-probe", model: "omo-mock/mock-1" }],
+    })
+
+    // when a node names an agent the routing has never seen, admission fails it
+    // before any child starts rather than routing it to another family's model
+    const unknown = await runtime.manager.start({ parentSessionId: sessionId, rootSessionId: sessionId, definition: definition("routing-unknown") })
+    const failed = await within(runtime.wait(unknown.snapshot.runId, sessionId), "unknown run settles", 5_000)
+
+    // then
+    expect(failed.status).toBe("failed")
+    const custom = failed.nodes.custom
+    if (custom?.state !== "failed") throw new Error(`expected the unknown node to fail, received ${custom?.state ?? "missing"}`)
+    expect(custom.error.message).toContain("custom-probe")
+    expect(runner.starts).toBe(0)
+
+    // when the engine routing learns the agent, the same node shape is admitted live
+    engine.setRoutingConfig({
+      ...baseConfig,
+      agents: { ...(baseConfig.agents ?? {}), "custom-probe": { model: "omo-mock/mock-1" } },
+    })
+    const known = await runtime.manager.start({ parentSessionId: sessionId, rootSessionId: sessionId, definition: definition("routing-known") })
+    const completion = runtime.wait(known.snapshot.runId, sessionId)
+    await within(runner.started.promise, "known node start", 5_000)
+    runner.startReleased.resolve()
+    runner.outcome.resolve({ status: "completed", finalResponse: "done" })
+
+    // then
+    const result = await within(completion, "known run completion", 5_000)
+    expect(result.status).toBe("completed")
+    expect(result.nodes.custom).toEqual(expect.objectContaining({ state: "completed", output: "done" }))
+    expect(runner.starts).toBe(1)
     runtime.dispose()
   })
 })

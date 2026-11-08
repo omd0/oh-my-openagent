@@ -78,12 +78,29 @@ Because cancel (and interrupt) return synchronously in the tool result, they are
 
 ## The `/tasks` UI
 
-The component registers two slash commands (`packages/omo-senpi/src/components/task/commands.ts`):
+The component registers these slash commands:
 
 - **`/tasks`** lists this session's tasks; `/tasks --all` lists tasks across every session.
+- **`/tasks watch [id-or-name]`** opens the manager for this session's children, or watches a uniquely selected worker directly. It includes ordinary delegated tasks; a DAG run is not required. DAG-owned workers still send instructions through their workflow's node-send operation. `--all` does not widen watcher access.
 - **`/task-kill`** opens a selector over cancellable tasks (running / pending / interrupted) and cancels the chosen one after a confirm.
 
-A live status widget below the editor tracks the session's tasks as they change; the footer itself stays reserved for the goal indicator.
+Live task and DAG widgets below the editor reuse the manager's agent-tree rows, with worker badges, state, activity and available metrics. The footer itself stays reserved for the goal indicator. DAG-owned tasks appear in the DAG widget rather than twice.
+
+Click a worker row to open its watch view on hosts with the native hyperlink click hook. Or press **Alt+Down** to focus the inline worker list, use **Up/Down** to select a worker, and press **Enter** to watch it. Page Up/Page Down, Home and End move through visible workers. **Escape** or **Alt+Up** returns focus to the editor; an unrelated typing key also leaves the list and reaches the editor. A selected worker is marked with `›`.
+
+The task and DAG widgets share one selection menu and one watch overlay. `/tasks watch` and `/dag watch` remain available when mouse activation is unavailable. Alt+Down is also used by the host's question UI; while worker rows are visible, the inline menu can take precedence over that question-navigation chord.
+
+## Watch a DAG node worker
+
+Run **`/dag watch`** to browse this session's workflow runs and their nodes, or **`/dag watch <runId>`** to open one run. Select a node to read its worker's output. The view identifies the run and node, so workers with the same node name in different runs stay distinct.
+
+Select a node with the arrow keys and press Enter to watch its worker. Left and Right fold or expand tree branches. The **Steer** input is focused: type instructions and press Enter to send them to that node. Tab switches between typing and browsing the transcript; the arrow keys and Page Up/Page Down scroll the output, and End follows new output in browse mode. Ctrl+O cycles full, preview and compact transcript detail. Escape returns to the node tree, and Ctrl+Q closes the watcher.
+
+Messages go through the workflow's node-send operation, preserving scheduler ownership, delivery reporting and paused-run guidance. A node that has not started has no worker transcript yet; the view explains that instead of attaching to another task.
+
+Close the watcher to return to the parent without stopping the workflow. Watching is not session adoption: the node keeps its existing owner, and the viewer never opens its transcript as a second writable session. Only this parent's runs are available. Without an interactive terminal UI, use `/dag <runId>` for the read-only node tree; live watching and steering are unavailable there.
+
+The tree and watch screens reuse the MIT-licensed `StatusDialog` and `LiveAgentView` components from [pi-subagent-manager](https://pi.dev/packages/pi-subagent-manager) 1.7.0. A DAG adapter supplies the node records, structured child messages and steering operation; the upstream agent engine is not installed or run. The tree keeps its upstream "Agents tree" heading. Pending or blocked DAG nodes appear as starting, and children without a session transcript fall back to the available text log.
 
 ## Teams
 
@@ -98,6 +115,22 @@ Named teams come from the project `teams` block in `omo.json` or `<project>/.omo
 There is no `team_wait` tool. When the next step depends on a reply, send with `task_send`, end the turn, and let the steered team-message notification resume the conversation when the reply arrives. Durable reservation and processed-message state prevent an inbox message from being lost during delivery or restart reconciliation.
 
 ## Configuration
+
+### Choose routing independently of the main model
+
+Put different category and agent setups under `profiles.<name>` in `omo.json`.
+Set `task.routing_profile` if one should be the default, then use
+`/routing <name>` to change the setup during a session. Both setups can use the
+same main model.
+
+`/routing` shows the active setup and available names.
+`/routing default` removes the session override. The next children use the
+selected setup; existing children keep their planned models, and the main
+session model stays unchanged. The selection follows the saved session branch
+when it is resumed or forked. A new session uses the configured default.
+
+See the [routing profile example](../reference/omo-json.md#selecting-task-routing-during-a-session)
+for the configuration shape and precedence.
 
 ### Checkout isolation
 

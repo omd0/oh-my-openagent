@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 
-import { runDiffCommand, type PanelCommandContext } from "./commands"
+import { openFileDiff, runDiffCommand, type PanelCommandContext } from "./commands"
 import { DIFF_VIEWER_ROW_CAP } from "./constants"
 import type { PanelExec } from "./git/read"
 import type { PanelGitStatus } from "./sections/files"
@@ -187,8 +187,8 @@ describe("side panel diff command hardening", () => {
     expect(test.selected).toEqual(["?? evil]8;;xname.txt"])
   })
 
-  test("#given a diff longer than the viewer holds #when opened #then it is cut at the cap with the rest counted", async () => {
-    // given
+  test("#given a diff longer than the viewer holds #when opened #then it is refused as too large", async () => {
+    // given: the viewer no longer truncates; the diff layer refuses before any split
     const diff = Array.from({ length: DIFF_VIEWER_ROW_CAP + 3 }, (_, index) => "+line " + index).join("\n")
     const test = harness({ withCustom: false, exec: async () => ({ stdout: diff, code: 0 }) })
 
@@ -196,8 +196,126 @@ describe("side panel diff command hardening", () => {
     await test.run()
 
     // then
-    const lines = (test.notices[0]?.message ?? "").split("\n")
-    expect(lines.length).toBe(DIFF_VIEWER_ROW_CAP + 1)
-    expect(lines[lines.length - 1]).toBe("... 3 more lines")
+    expect(test.notices).toHaveLength(1)
+    expect(test.notices[0]?.message).toContain("Changes too large")
+    expect(test.notices[0]?.type).toBe("info")
+  })
+
+  test("#given more changed files than the selector holds #when run #then only the first 500 are listed with the rest counted", async () => {
+    // given
+    const files = Array.from({ length: 502 }, (_, index) => ({ xy: " M", path: `f${index}.txt` }))
+    const test = harness({ status: () => ({ root: "/repo", files }) })
+
+    // when
+    await test.run()
+
+    // then
+    expect(test.selected).toHaveLength(500)
+    expect(test.notices).toEqual([{ message: "Showing 500 of 502 changed files.", type: "info" }])
+    expect(test.popupRows[0]?.some((line) => line.includes("f0.txt"))).toBe(true)
+  })
+
+  test("#given a path longer than the label budget #when the picker lists it #then the label is bounded and deltas stay compact", async () => {
+    // given: one label that must be cut, one short label carrying a large count
+    const test = harness({
+      status: () => ({
+        root: "/repo",
+        files: [
+          { xy: " M", path: `${"b".repeat(600)}.txt` },
+          { xy: " M", path: "src/big.ts", added: 12_345, removed: 678 },
+        ],
+      }),
+      choose: () => undefined,
+    })
+
+    // when
+    await test.run()
+
+    // then
+    expect(test.selected).toHaveLength(2)
+    expect(test.selected[0]?.length).toBeLessThanOrEqual(512)
+    expect(test.selected[1]).toContain("+12.3k")
+  })
+
+  test("#given a status the reader refused #when run #then it says too large without touching git", async () => {
+    // given
+    let spawns = 0
+    const test = harness({
+      status: () => ({ root: "/repo", files: [], tooLarge: true }),
+      exec: async () => {
+        spawns += 1
+        return { stdout: "", code: 0 }
+      },
+    })
+
+    // when
+    await test.run()
+
+    // then
+    expect(test.notices).toEqual([{ message: "Changes too large", type: "warning" }])
+    expect(spawns).toBe(0)
+    expect(test.popupRows).toEqual([])
+    expect(test.selected).toEqual([])
+  })
+
+  test("#given a very long path with terminal controls #when its diff is opened #then git gets the full path while the title stays bounded", async () => {
+    // given: the click path carries the real path; only the shown title is cut
+    const full = `${"a".repeat(590)}\x1b]8;;x\x07`
+    const seen: string[][] = []
+    const exec: PanelExec = async (_command, args) => {
+      seen.push([...args])
+      return { stdout: "+hello", code: 1 }
+    }
+    const messages: string[] = []
+    const ui = {
+      notify(message: string) {
+        messages.push(message)
+      },
+    }
+
+    // when
+    await openFileDiff(ui, exec, { root: "/repo", files: [] }, { xy: "??", path: full })
+
+    // then
+    expect(seen[0]?.at(-1)).toBe(full)
+    const title = messages[0]?.split("\n")[0] ?? ""
+    expect(title.length).toBeLessThanOrEqual(512)
+    expect(title).not.toContain("\x1b")
+  })
+
+  test("#given two files whose labels collide at the bound #when the second is chosen #then git diffs the second file", async () => {
+    // given: INPUT precondition on the fixtures — paths identical through the
+    // whole 512-char label budget, differing only after it. Asserted here, so a
+    // fix that disambiguates the labels keeps this test valid.
+    const first = `${"p".repeat(600)}-first.txt`
+    const second = `${"p".repeat(600)}-second.txt`
+    expect(first.slice(0, 512)).toBe(second.slice(0, 512))
+    const seen: string[][] = []
+    const test = harness({
+      status: () => ({
+        root: "/repo",
+        files: [
+          { xy: " M", path: first },
+          { xy: " M", path: second },
+        ],
+      }),
+      exec: async (_command, args) => {
+        seen.push([...args])
+        return { stdout: "+x\n", code: 0 }
+      },
+      // a reachable entry, never a synthetic string: the second option itself
+      choose: (options) => options[1],
+    })
+
+    // when
+    await test.run()
+
+    // then: options must stay usable as select-string identity — distinct and bounded
+    expect(test.selected).toHaveLength(2)
+    expect(test.selected.every((label) => label.length <= 512)).toBe(true)
+    expect(test.selected[0]).not.toBe(test.selected[1])
+    // the chosen entry must open the second file in full, not the first
+    expect(seen[0]?.at(-1)).toContain(second)
+    expect(seen[0]?.at(-1)).not.toContain(first)
   })
 })

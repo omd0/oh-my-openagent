@@ -165,7 +165,7 @@ The OpenCode comment-checker hook downloads its pinned binary directly from [Git
 
 ### OmO Native: `omo` via `omo-ai`
 
-OmO Native ships as the npm package `omo-ai` and installs a single command, `omo`, which launches the pinned senpi engine with the full OMO extension loaded. No settings edits, no plugin registration, no extra setup. Coming from the OpenCode edition? Follow [Migrating from OpenCode](./migrating-from-opencode.md): it covers the installer, what `omo setup` carries over, the habit mapping, and running both editions side by side.
+OmO Native ships as the npm package `omo-ai` and installs the `omo` command, which launches the pinned senpi engine with the full OMO extension loaded. Installation does not edit settings or register a plugin. Coming from the OpenCode edition? Follow [Migrating from OpenCode](./migrating-from-opencode.md): it covers the installer, what `omo setup` carries over, the habit mapping, and running both editions side by side.
 
 Install it and run it:
 
@@ -173,6 +173,15 @@ Install it and run it:
 bun add -g omo-ai
 omo
 ```
+
+To opt in to Claude subscription models using an existing Claude Code login, run `claude auth login` only if you have not signed in already, then preview and apply the Native setting:
+
+```bash
+omo setup --claude --dry-run
+omo setup --claude --yes
+```
+
+Start `omo`, then use `/model` to choose a model from `anthropic-subscription`. The Claude SDK owns authentication and token refresh. OmO does not inspect Claude sign-in status or copy, store, or refresh Claude credentials. Setup changes only the `anthropicSubscriptionProvider.enabled` and `tokenInjection` settings; it leaves your current model selection unchanged. Settings are stored in `settings.jsonc` (or the existing `settings.json`) in OmO's agent directory, normally `~/.omo/agent`, with `OMO_CODING_AGENT_DIR` overrides respected. To turn this provider off, set `anthropicSubscriptionProvider.enabled` to `false` in that settings file.
 
 Without bun, `npm i -g omo-ai` works too. Prerelease builds are published on `omo-ai@beta`; see the [omo-ai publishing runbook](../reference/omo-ai-publishing.md) for how channels work.
 

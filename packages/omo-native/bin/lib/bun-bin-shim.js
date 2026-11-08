@@ -14,7 +14,9 @@ const BUN_PRELUDE = [
 
 const BIN_ENTRIES = [
   { label: "bin", segments: ["bin", "omo"] },
+  { label: "pi-bin", segments: ["bin", "pi"] },
   { label: "node-modules-bin", segments: ["install", "global", "node_modules", ".bin", "omo"] },
+  { label: "node-modules-pi-bin", segments: ["install", "global", "node_modules", ".bin", "pi"] },
 ]
 
 /** Prepare only the package-owned file. Bun's bin symlinks must never become regular files. */
@@ -106,5 +108,9 @@ export function ensureBunBinShim(input) {
 
   const entries = BIN_ENTRIES.map((entry) => repairBinEntry(entry, bunRoot(env, homedir, platform), io))
   const primary = entries[0]
-  return { action: primary.action, error: primary.error, entries }
+  return {
+    action: primary.action,
+    error: primary.error,
+    entries: entries.filter((entry) => entry.label === "bin" || entry.label === "node-modules-bin"),
+  }
 }

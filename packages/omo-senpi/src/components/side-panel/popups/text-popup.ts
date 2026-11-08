@@ -1,6 +1,6 @@
 import { sanitizeTerminalText } from "../format/sanitize"
 import { padVisible, truncateVisible } from "../format/truncate"
-import type { PanelRow, PanelTheme, PopupTui } from "../types"
+import type { PanelOverlayMouseEvent, PanelOverlayMouseResult, PanelRow, PanelTheme, PopupTui } from "../types"
 import { clampScroll, popupBudget, POPUP_CHROME_ROWS } from "./viewport"
 
 export interface PopupComponent {
@@ -8,6 +8,11 @@ export interface PopupComponent {
   handleInput(data: string): void
   /** Move the view by `rows`, clamped on the next paint. Used by the wheel. */
   scrollBy(rows: number): void
+  /**
+   * The host's native overlay path: a wheel over the viewer arrives here with its resolved row count.
+   * A claimed wheel moves this viewer and is not routed to the layout behind it.
+   */
+  handleMouse(event: PanelOverlayMouseEvent): PanelOverlayMouseResult | undefined
   invalidate(): void
 }
 
@@ -21,6 +26,11 @@ export interface PopupOptions {
   readonly close: () => void
 }
 
+/**
+ * A jump past any real content, for Home and End: the offset is clamped to the content on the next paint,
+ * so this only has to be larger than any viewer, and finite and safe to add to.
+ */
+const HUGE_SCROLL = Number.MAX_SAFE_INTEGER
 const ESCAPE_KEYS = new Set(["\x1b", "q", "\r", "\n"])
 // With the Kitty keyboard protocol Escape arrives as CSI 27 u, optionally with modifiers.
 const KITTY_ESCAPE = /^\x1b\[27(;[\d;]*)?u$/
@@ -73,6 +83,12 @@ export function createTextPopup(tui: PopupTui, theme: PanelTheme | undefined, op
       this.scrollBy(step)
     },
 
+    handleMouse(event: PanelOverlayMouseEvent): PanelOverlayMouseResult | undefined {
+      if (event.type !== "wheel" || event.wheelDelta === undefined || !Number.isFinite(event.wheelDelta)) return undefined
+      this.scrollBy(Math.trunc(event.wheelDelta))
+      return { handled: true }
+    },
+
     scrollBy(rows: number): void {
       if (rows === 0) return
       // The upper bound needs the body length and the row budget, which only the paint knows,
@@ -96,6 +112,9 @@ function scrollStep(data: string): number {
   if (data === "\x1b[A" || data === "k") return -1
   if (data === "\x1b[6~") return 10
   if (data === "\x1b[5~") return -10
+  // Home and End move to the first and last row; the clamp on the next paint keeps the view on content.
+  if (data === "\x1b[H" || data === "\x1b[1~") return -HUGE_SCROLL
+  if (data === "\x1b[F" || data === "\x1b[4~") return HUGE_SCROLL
   return 0
 }
 

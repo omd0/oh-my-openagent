@@ -17,8 +17,13 @@ import {
 } from "./constants"
 import { createSidePanelComponent } from "./index"
 import type { PanelMemory, PanelMemoryIdentity, PanelTimers } from "./types"
-import { SIDE_PANEL_DIFF_COMMAND } from "./constants"
+import { DAG_SECTION_ROW_FLOOR, SIDE_PANEL_DAG_COMMAND, SIDE_PANEL_DIFF_COMMAND, SIDE_PANEL_WIDGET_KEY } from "./constants"
 import type { PanelTaskRecord } from "./data/task-records"
+import { claimDagPanelFeed } from "../task/dag-panel-feed"
+import { dagNode, dagRun } from "./dag-panel.test-support"
+import { panelActionUrl } from "./links"
+import type { PopupComponent } from "./popups/text-popup"
+import type { PanelComponent } from "./types"
 import { claimRegularModeNotice, REGULAR_MODE_NOTICE_MARKER } from "./regular-mode-notice"
 import { testTempDir } from "../../../test-support/temp-dir"
 
@@ -234,6 +239,30 @@ function columnRows(tui: FakeTui, width = 52): string[] {
   const node = accessor() as { entries: ReadonlyArray<{ component: { render(width: number): string[] } }> }
   const panel = node.entries[1]?.component
   if (panel === undefined) throw new Error("no panel entry")
+  // The column paints a divider gutter the content assertions do not own: strip it here so the
+  // wiring keeps asserting section facts, while the layout tests below own the raw frame.
+  return panel.render(width).map((line) => stripColumnFrame(line))
+}
+
+/** Remove the column frame (divider + gutters) from one painted line. */
+function stripColumnFrame(line: string): string {
+  const trimmed = line.trimEnd()
+  if (trimmed === "│" || trimmed === "") return ""
+  if (trimmed.startsWith("│ ")) return trimmed.slice(2).trimEnd()
+  if (trimmed.startsWith("│")) return trimmed.slice(1).trimEnd()
+  if (trimmed.startsWith(" ")) return trimmed.slice(1).trimEnd()
+  return trimmed
+}
+
+/** The raw painted frame, owned by the layout tests. */
+function rawColumnRows(tui: FakeTui, width = 52): string[] {
+  const root = tui.layoutRoot
+  if (typeof root !== "object" || root === null) throw new Error("no layout root")
+  const accessor = (root as Record<symbol, unknown>)[PI_TUI_LAYOUT_NODE]
+  if (typeof accessor !== "function") throw new Error("root is not a layout node")
+  const node = accessor() as { entries: ReadonlyArray<{ component: { render(width: number): string[] } }> }
+  const panel = node.entries[1]?.component
+  if (panel === undefined) throw new Error("no panel entry")
   return panel.render(width).map((line) => line.trimEnd())
 }
 
@@ -241,6 +270,7 @@ function mounted(
   overrides: Partial<Parameters<typeof createSidePanelComponent>[0]> = {},
   hostExtras: Record<string, unknown> = {},
   cwd = "/repo",
+  uiExtras: Record<string, unknown> = {},
 ) {
   const pi = new FakeExtensionAPI()
   pi.cwd = cwd
@@ -292,6 +322,7 @@ function mounted(
       notify(message: string) {
         notices.push(message)
       },
+      ...uiExtras,
     },
     ...hostExtras,
   })
@@ -316,7 +347,7 @@ describe("side panel wiring", () => {
     { cwd: "/repo", location: "/repo" },
     {
       cwd: "/workspaces/long-nested-directory/another-directory/oh-my-openagent-test-worktree",
-      location: "…ory/another-directory/oh-my-openagent-test-worktree",
+      location: "…/another-directory/oh-my-openagent-test-worktree",
     },
   ])("#given a mounted panel at $cwd #when the column renders #then it carries the session facts and the location", async ({ cwd, location }) => {
     // given
@@ -483,7 +514,7 @@ describe("side panel git wiring", () => {
 
     // then
     expect(rows).toContain("FILES  2 changed")
-    expect(rows).toContain(" M tracked.txt  +2/-1")
+    expect(rows.some((row) => row.startsWith(" M tracked.txt") && row.endsWith("+2/-1"))).toBe(true)
     expect(rows).toContain("?? brand-new.txt")
     expect(rows[rows.length - 1]?.endsWith("· feat/side-panel")).toBe(true)
   })
@@ -1389,14 +1420,564 @@ describe("side panel lifecycle and guards", () => {
     const accessor = (harness.tui.layoutRoot as Record<symbol, unknown>)[PI_TUI_LAYOUT_NODE]
     if (typeof accessor !== "function") throw new Error("root is not a layout node")
     const node = accessor() as {
-      entries: ReadonlyArray<{ basis?: number; visible?: (viewport: { width: number; height: number }) => boolean }>
+      type: string
+      gap: number
+      align: string
+      entries: ReadonlyArray<{
+        basis?: number | "auto"
+        grow?: number
+        shrink?: number
+        minSize?: number
+        visible?: (viewport: { width: number; height: number }) => boolean
+        component: unknown
+      }>
     }
     const panel = node.entries[1]
+    const container = harness.tui.layoutRoot as { children: readonly unknown[] }
 
     // then: a quarter-ish column beside the transcript, and the classic layout on a small screen
+    expect(node.type).toBe("hstack")
+    expect(node.gap).toBe(0)
+    expect(node.align).toBe("stretch")
+    expect(node.entries).toHaveLength(2)
+    // The transcript stays first with room to shrink, the panel never grows: the host scroll is untouched.
+    expect(container.children[0]).toBe(node.entries[0]?.component)
+    expect(node.entries[0]?.minSize).toBe(60)
+    expect(node.entries[0]?.grow).toBe(1)
+    expect(panel?.grow).toBe(0)
+    expect(panel?.shrink).toBe(0)
     expect(panel?.visible?.({ width: 200, height: 50 })).toBe(true)
     expect(panel?.visible?.({ width: 100, height: 50 })).toBe(false)
     expect(panel?.basis ?? 0).toBeGreaterThanOrEqual(32)
     expect(panel?.basis ?? 0).toBeLessThan(100)
+  })
+
+  test("#given an installed column #when painted raw #then the divider frames the content", async () => {
+    // given
+    const harness = mounted()
+    await harness.pi.dispatch("session_start", {}, harness.host)
+    harness.attach()
+
+    // when
+    const raw = rawColumnRows(harness.tui)
+
+    // then: the fullscreen column carries its left rule, the content helper owns the stripped facts
+    expect(raw.length).toBeGreaterThan(0)
+    expect(raw.every((line) => line.startsWith("│") || line === "")).toBe(true)
+    expect(raw.some((line) => line.startsWith("│ SESSION"))).toBe(true)
+  })
+})
+
+describe("side panel Changes expansion", () => {
+  const manyStatus = (total: number): string => Array.from({ length: total }, (_, index) => ` M file-${index}.ts\0`).join("")
+  const manyNumstat = (total: number): string => Array.from({ length: total }, (_, index) => `2\t1\tfile-${index}.ts\0`).join("")
+
+  function changesHarness(total: number, clickable = true) {
+    const exec = async (_command: string, args: string[]): Promise<{ stdout: string; stderr: string; code: number }> => {
+      if (args[0] === "status") return { stdout: manyStatus(total), stderr: "", code: 0 }
+      return { stdout: manyNumstat(total), stderr: "", code: 0 }
+    }
+    const harness = mounted(
+      {
+        exec,
+        findGitRoot: () => "/repo",
+        readGitBranch: () => "main",
+        loadSettings: () => settings({ enabled: true, clickable }),
+      },
+      {},
+      "/repo",
+    )
+    // The panel only claims the url hook when the host exposes one: hand it a callback to wrap.
+    harness.tui.openUrl = () => undefined
+    return harness
+  }
+
+  test("#given more files than the preview #when the column renders #then a Show more counter is shown", async () => {
+    // given
+    const harness = changesHarness(10)
+    await harness.pi.dispatch("session_start", {}, harness.host)
+    harness.attach()
+
+    // when
+    const rows = columnRows(harness.tui)
+
+    // then: the compact preview counts the exact remainder and keeps the other sections
+    expect(rows).toContain("FILES  10 changed")
+    expect(rows.join("\n")).toContain("+2 more")
+    expect(rows.some((row) => row.includes("Show more") && row.includes("+2 more"))).toBe(true)
+    expect(rows.some((row) => row.startsWith("SESSION"))).toBe(true)
+  })
+
+  test("#given Show more activated #when the column renders #then Changes takes the column with a Show less head", async () => {
+    // given
+    const harness = changesHarness(10)
+    await harness.pi.dispatch("session_start", {}, harness.host)
+    harness.attach()
+
+    // when
+    harness.tui.openUrl?.("omo-panel:files-more/current")
+    await Promise.resolve()
+    await Promise.resolve()
+    const rows = columnRows(harness.tui)
+
+    // then
+    expect(rows[0]).toBe("FILES  10 changed")
+    expect(rows[1]?.includes("Show less")).toBe(true)
+    expect(rows.filter((row) => row.includes("file-")).length).toBe(10)
+    expect(rows.some((row) => row.startsWith("SESSION"))).toBe(false)
+  })
+
+  test("#given expanded Changes #when Show less is activated #then the sections return", async () => {
+    // given
+    const harness = changesHarness(10)
+    await harness.pi.dispatch("session_start", {}, harness.host)
+    harness.attach()
+    harness.tui.openUrl?.("omo-panel:files-more/current")
+    await Promise.resolve()
+    await Promise.resolve()
+
+    // when
+    harness.tui.openUrl?.("omo-panel:files-less/current")
+    await Promise.resolve()
+    await Promise.resolve()
+    const rows = columnRows(harness.tui)
+
+    // then
+    expect(rows.some((row) => row.startsWith("SESSION"))).toBe(true)
+    expect(rows.some((row) => row.includes("Show more"))).toBe(true)
+    expect(rows.some((row) => row.includes("Show less"))).toBe(false)
+  })
+
+  test("#given expanded Changes #when the session ends #then the next session starts collapsed", async () => {
+    // given
+    const harness = changesHarness(10)
+    await harness.pi.dispatch("session_start", {}, harness.host)
+    harness.attach()
+    harness.tui.openUrl?.("omo-panel:files-more/current")
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(columnRows(harness.tui)[1]?.includes("Show less")).toBe(true)
+
+    // when
+    await harness.pi.dispatch("session_shutdown", {}, harness.host)
+    await harness.pi.dispatch("session_start", {}, harness.host)
+    harness.attach()
+
+    // then
+    const rows = columnRows(harness.tui)
+    expect(rows.some((row) => row.startsWith("SESSION"))).toBe(true)
+    expect(rows.some((row) => row.includes("Show more"))).toBe(true)
+  })
+
+  test("#given clicks off #when Show more arrives #then the column stays compact", async () => {
+    // given: without clicks there is no Show less control to return from
+    const harness = changesHarness(10, false)
+    await harness.pi.dispatch("session_start", {}, harness.host)
+    harness.attach()
+
+    // when
+    harness.tui.openUrl?.("omo-panel:files-more/current")
+    await Promise.resolve()
+    await Promise.resolve()
+    const rows = columnRows(harness.tui)
+
+    // then
+    expect(rows.some((row) => row.startsWith("SESSION"))).toBe(true)
+    expect(rows.some((row) => row.includes("Show less"))).toBe(false)
+  })
+
+  test("#given a widget fallback #when many files change #then the block stays compact with a muted remainder", async () => {
+    // given: the regular-mode block has no Show less control
+    const harness = changesHarness(10)
+    harness.tui.setLayoutRoot(undefined)
+    await harness.pi.dispatch("session_start", {}, harness.host)
+    harness.attach()
+
+    // when
+    const body = widgetBody(harness)
+
+    // then
+    expect(body.some((row) => row.includes("FILES"))).toBe(true)
+    expect(body.some((row) => row.includes("+2 more"))).toBe(true)
+    expect(body.some((row) => row.includes("Show less"))).toBe(false)
+  })
+
+  test("#given a refused file list #when the column renders #then the warning shows and never reads as clean", async () => {
+    // given: the bounded reader kept nothing and does not know the total
+    const harness = mounted({
+      exec: async () => ({ stdout: "", stderr: "", code: 0, tooLarge: true }),
+      findGitRoot: () => "/repo",
+      readGitBranch: () => "main",
+    })
+    await harness.pi.dispatch("session_start", {}, harness.host)
+    harness.attach()
+
+    // when
+    const rows = columnRows(harness.tui)
+
+    // then
+    expect(rows.some((row) => row.startsWith("FILES"))).toBe(true)
+    expect(rows.some((row) => row.includes("Changes too large"))).toBe(true)
+    expect(rows.some((row) => row.includes("0 changed"))).toBe(false)
+  })
+})
+
+// --- DAG graph wiring --------------------------------------------------------------
+
+/** The widget block the panel falls back to when the renderer has no layout seam. */
+function widgetBody(harness: ReturnType<typeof mounted>, width = 52): string[] {
+  const call = [...harness.widgets].reverse().find((candidate) => candidate.key === SIDE_PANEL_WIDGET_KEY)
+  if (typeof call?.content !== "function") throw new Error("no widget block")
+  const component = (call.content as () => PanelComponent)()
+  return component.render(width)
+}
+
+function dagPanelRun(overrides: Parameters<typeof dagRun>[0] = {}) {
+  return dagRun({
+    runId: "run-panel",
+    name: "panel run",
+    nodes: [
+      dagNode({ id: "node-panel", label: "Panel node", state: "running", startedAt: "2026-11-08T00:00:00.000Z" }),
+    ],
+    ...overrides,
+  })
+}
+
+/**
+ * The panel's DAG state lives in a process-wide registry keyed by session id, so each case mounts
+ * its own session: a leftover claim from a failed case must not reach the next one.
+ */
+function dagHarness(
+  name: string,
+  overrides: Partial<Parameters<typeof createSidePanelComponent>[0]> = {},
+  uiExtras: Record<string, unknown> = {},
+) {
+  const sessionId = `session-dag-panel-${name}`
+  const harness = mounted(overrides, {
+    sessionManager: {
+      getSessionId: () => sessionId,
+      getUsageTotals: () => ({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 }),
+    },
+  }, "/repo", uiExtras)
+  return { harness, sessionId }
+}
+
+describe("side panel DAG wiring", () => {
+  test("#given a column mounted before its session feed exists #when the feed publishes and then reports activity #then the column repaints once per burst with the live graph", async () => {
+    // given: session_start runs before the task engine claims the feed, as it does in a real start
+    const { harness, sessionId } = dagHarness("publish")
+    await harness.pi.dispatch("session_start", {}, harness.host)
+    harness.attach()
+    expect(columnRows(harness.tui).some((row) => row.includes("panel run"))).toBe(false)
+    let activity = "reading spec.md"
+    const claimed = claimDagPanelFeed(sessionId, {}, {
+      runs: () => [dagPanelRun()],
+      activity: (_runId, nodeId) => (nodeId === "node-panel" ? activity : undefined),
+    })
+    const rendersBefore = harness.tui.renders
+
+    // when - a burst of feed changes coalesces into one repaint
+    claimed.notify()
+    claimed.notify()
+    expect(harness.timers.pending()).toBe(1)
+    harness.timers.fire()
+
+    // then
+    expect(harness.tui.renders).toBe(rendersBefore + 1)
+    const rows = columnRows(harness.tui)
+    expect(rows.some((row) => row.includes("panel run"))).toBe(true)
+    expect(rows.some((row) => row.includes("Panel node"))).toBe(true)
+    expect(rows.some((row) => row.includes("reading spec.md"))).toBe(true)
+
+    // when - the node moves on under an open column
+    activity = "compiling pkg/a"
+    claimed.notify()
+    harness.timers.fire()
+
+    // then
+    expect(columnRows(harness.tui).some((row) => row.includes("compiling pkg/a"))).toBe(true)
+
+    claimed.dispose()
+  })
+
+  test("#given feeds for two sessions #when the other session publishes #then the mounted column keeps its own session's graph", async () => {
+    // given
+    const { harness, sessionId } = dagHarness("two-sessions")
+    await harness.pi.dispatch("session_start", {}, harness.host)
+    harness.attach()
+    const settled = (name: string) => dagPanelRun({ name, status: "completed", nodes: [dagNode({ id: "node-panel", label: "Panel node", state: "completed" })] })
+    const own = claimDagPanelFeed(sessionId, {}, { runs: () => [settled("own run")], activity: () => undefined })
+    harness.timers.fire()
+    const other = claimDagPanelFeed(`${sessionId}-other`, {}, { runs: () => [settled("other run")], activity: () => undefined })
+
+    // when
+    const before = harness.timers.pending()
+    other.notify()
+
+    // then
+    expect(before).toBe(0)
+    expect(harness.timers.pending()).toBe(0)
+    const rows = columnRows(harness.tui)
+    expect(rows.some((row) => row.includes("own run"))).toBe(true)
+    expect(rows.some((row) => row.includes("other run"))).toBe(false)
+
+    own.dispose()
+    other.dispose()
+  })
+
+  test("#given a mounted column with a repaint pending #when the session shuts down #then the repaint is cancelled and the feed can no longer paint it", async () => {
+    // given
+    const { harness, sessionId } = dagHarness("teardown")
+    await harness.pi.dispatch("session_start", {}, harness.host)
+    harness.attach()
+    const claimed = claimDagPanelFeed(sessionId, {}, {
+      runs: () => [dagPanelRun({ status: "completed", nodes: [dagNode({ id: "node-panel", state: "completed" })] })],
+      activity: () => undefined,
+    })
+    expect(harness.timers.pending()).toBe(1)
+
+    // when
+    await harness.pi.dispatch("session_shutdown", {}, harness.host)
+    const renders = harness.tui.renders
+    claimed.notify()
+
+    // then
+    expect(harness.timers.pending()).toBe(0)
+    expect(harness.tui.renders).toBe(renders)
+
+    claimed.dispose()
+  })
+
+  test("#given sections.dag is off #when the session feed publishes #then the column neither repaints nor draws a graph", async () => {
+    // given
+    const base = settings({ enabled: true })
+    const { harness, sessionId } = dagHarness("dag-off", { loadSettings: () => ({ ...base, sections: { ...base.sections, dag: false } }) })
+    await harness.pi.dispatch("session_start", {}, harness.host)
+    harness.attach()
+    const claimed = claimDagPanelFeed(sessionId, {}, { runs: () => [dagPanelRun()], activity: () => undefined })
+
+    // when
+    claimed.notify()
+
+    // then
+    expect(harness.timers.pending()).toBe(0)
+    expect(columnRows(harness.tui).some((row) => row.includes("panel run"))).toBe(false)
+
+    claimed.dispose()
+  })
+
+  test("#given a regular-mode renderer without the layout seam #when the session feed publishes #then the widget block carries no graph", async () => {
+    // given: the default TUI mode falls back to a block above the editor
+    const { harness, sessionId } = dagHarness("regular")
+    harness.tui.setLayoutRoot(undefined)
+    await harness.pi.dispatch("session_start", {}, harness.host)
+    harness.attach()
+    const claimed = claimDagPanelFeed(sessionId, {}, {
+      runs: () => [dagPanelRun({ status: "completed", nodes: [dagNode({ id: "node-panel", state: "completed" })] })],
+      activity: () => undefined,
+    })
+
+    // when
+    claimed.notify()
+    harness.timers.fire()
+
+    // then
+    const body = widgetBody(harness)
+    expect(body.length).toBeGreaterThan(0)
+    expect(body.some((row) => row.includes("panel run"))).toBe(false)
+
+    claimed.dispose()
+  })
+
+  test("#given a short terminal and a tall one #when the same run is drawn #then the graph shrinks to its floor instead of taking the column", async () => {
+    // given: twelve independent nodes, drawn in a column of either height
+    const nodes = Array.from({ length: 12 }, (_unused, index) => dagNode({ id: `node-${index}`, label: `Step ${index}`, state: "completed" }))
+    const run = dagRun({ runId: "run-height", name: "height run", status: "completed", nodes })
+    const graphRows = async (terminalRows: number): Promise<string[]> => {
+      const { harness, sessionId } = dagHarness(`height-${terminalRows}`, { terminalRows: () => terminalRows })
+      await harness.pi.dispatch("session_start", {}, harness.host)
+      harness.attach()
+      const claimed = claimDagPanelFeed(sessionId, {}, { runs: () => [run], activity: () => undefined })
+      harness.timers.fire()
+      const rows = columnRows(harness.tui)
+      claimed.dispose()
+      return rows
+    }
+
+    // when
+    const short = await graphRows(20)
+    const tall = await graphRows(100)
+
+    // then - the graph is the column's first block, and the short terminal caps it
+    const shortBlock = short.findIndex((row) => row === "")
+    const tallSession = tall.findIndex((row) => row.startsWith("SESSION"))
+    const shortSession = short.findIndex((row) => row.startsWith("SESSION"))
+    expect(shortBlock).toBeGreaterThan(0)
+    expect(shortSession).toBeGreaterThan(0)
+    expect(tallSession).toBeGreaterThan(shortSession)
+    expect(shortBlock).toBeLessThanOrEqual(DAG_SECTION_ROW_FLOOR)
+  })
+
+  test("#given the panel can be on #when the component registers #then the dag command is offered, and not when the panel is off", () => {
+    // given / when
+    const enabled = mounted()
+    const disabled = mounted({ loadSettings: () => settings({ enabled: false }) })
+
+    // then
+    expect(enabled.pi.commands.some((command) => command.name === SIDE_PANEL_DAG_COMMAND)).toBe(true)
+    expect(disabled.pi.commands.some((command) => command.name === SIDE_PANEL_DAG_COMMAND)).toBe(false)
+  })
+
+  test("#given no mounted panel #when the dag command runs #then it refuses without opening an overlay", async () => {
+    // given
+    const harness = mounted()
+    const handler = harness.pi.commands.find((command) => command.name === SIDE_PANEL_DAG_COMMAND)?.options.handler
+    if (typeof handler !== "function") throw new Error("dag command handler missing")
+    const notices: string[] = []
+    let opened = 0
+    const ui = {
+      notify: (message: string) => {
+        notices.push(message)
+      },
+      custom: async () => {
+        opened += 1
+        return undefined
+      },
+    }
+
+    // when
+    await (handler as (args: string, ctx: unknown) => Promise<void>)("", { ui })
+
+    // then
+    expect(notices).toHaveLength(1)
+    expect(opened).toBe(0)
+  })
+
+  test("#given a mounted column with a live run #when the dag command runs #then it opens the graph overlay on that run", async () => {
+    // given
+    const { harness, sessionId } = dagHarness("command")
+    await harness.pi.dispatch("session_start", {}, harness.host)
+    harness.attach()
+    const claimed = claimDagPanelFeed(sessionId, {}, { runs: () => [dagPanelRun()], activity: () => undefined })
+    const handler = harness.pi.commands.find((command) => command.name === SIDE_PANEL_DAG_COMMAND)?.options.handler
+    if (typeof handler !== "function") throw new Error("dag command handler missing")
+    const opened: PopupComponent[] = []
+    const ui = {
+      notify: () => undefined,
+      custom: async (factory: (tui: unknown, theme: unknown, bindings: unknown, done: () => void) => unknown) => {
+        opened.push(factory({ terminal: { rows: 40 }, requestRender: () => undefined }, undefined, undefined, () => undefined) as PopupComponent)
+        return undefined
+      },
+    }
+
+    // when
+    await (handler as (args: string, ctx: unknown) => Promise<void>)("", { ui })
+
+    // then
+    expect(opened).toHaveLength(1)
+    const painted = opened[0]?.render(60).join("\n") ?? ""
+    expect(painted).toContain("Panel node")
+    expect(painted).toContain("node-panel")
+
+    claimed.dispose()
+  })
+
+  test("#given a headless host with no command ui #when the dag command runs #then it opens nothing", async () => {
+    // given
+    const harness = mounted()
+    const handler = harness.pi.commands.find((command) => command.name === SIDE_PANEL_DAG_COMMAND)?.options.handler
+    if (typeof handler !== "function") throw new Error("dag command handler missing")
+
+    // when / then
+    await expect((handler as (args: string, ctx: unknown) => Promise<void>)("", {})).resolves.toBeUndefined()
+    expect(harness.notices).toEqual([])
+  })
+
+  test("#given a host that exposes no overlay seam #when the dag command runs #then the graph is delivered as a notification", async () => {
+    // given
+    const { harness, sessionId } = dagHarness("no-overlay")
+    await harness.pi.dispatch("session_start", {}, harness.host)
+    harness.attach()
+    const claimed = claimDagPanelFeed(sessionId, {}, {
+      runs: () => [dagPanelRun({ status: "completed" })],
+      activity: () => undefined,
+    })
+    const handler = harness.pi.commands.find((command) => command.name === SIDE_PANEL_DAG_COMMAND)?.options.handler
+    if (typeof handler !== "function") throw new Error("dag command handler missing")
+    const notices: string[] = []
+    const ui = { notify: (message: string) => { notices.push(message) } }
+
+    // when
+    await (handler as (args: string, ctx: unknown) => Promise<void>)("", { ui })
+
+    // then
+    expect(notices).toHaveLength(1)
+    expect(notices[0]).toContain("Panel node")
+    expect(notices[0]).toContain("panel run")
+
+    claimed.dispose()
+  })
+
+  test("#given a mounted column with no runs #when the dag command runs #then it reports that and opens nothing", async () => {
+    // given
+    const { harness } = dagHarness("no-runs")
+    await harness.pi.dispatch("session_start", {}, harness.host)
+    harness.attach()
+    const handler = harness.pi.commands.find((command) => command.name === SIDE_PANEL_DAG_COMMAND)?.options.handler
+    if (typeof handler !== "function") throw new Error("dag command handler missing")
+    let opened = 0
+    const notices: string[] = []
+    const ui = {
+      notify: (message: string) => { notices.push(message) },
+      custom: async () => { opened += 1; return undefined },
+    }
+
+    // when
+    await (handler as (args: string, ctx: unknown) => Promise<void>)("", { ui })
+
+    // then
+    expect(notices).toHaveLength(1)
+    expect(notices[0]?.length).toBeGreaterThan(0)
+    expect(opened).toBe(0)
+  })
+
+  test("#given a clickable column #when a node row is activated #then the overlay opens with that node selected, not the running one", async () => {
+    // given the host hands the panel a URL callback and an overlay seam
+    let resolvePopup: (component: PopupComponent) => void = () => undefined
+    const popupReady = new Promise<PopupComponent>((resolve) => {
+      resolvePopup = resolve
+    })
+    const { harness, sessionId } = dagHarness(
+      "click",
+      { loadSettings: () => settings({ enabled: true, clickable: true }) },
+      {
+        custom: async (factory: (tui: unknown, theme: unknown, bindings: unknown, done: () => void) => unknown) => {
+          resolvePopup(factory({ terminal: { rows: 40 }, requestRender: () => undefined }, undefined, undefined, () => undefined) as PopupComponent)
+          return undefined
+        },
+      },
+    )
+    harness.tui.openUrl = () => undefined
+    await harness.pi.dispatch("session_start", {}, harness.host)
+    harness.attach()
+    const run = dagPanelRun({
+      nodes: [
+        dagNode({ id: "node-idle", label: "Idle node", state: "completed" }),
+        dagNode({ id: "node-panel", label: "Panel node", state: "running", dependsOn: ["node-idle"] }),
+      ],
+    })
+    const claimed = claimDagPanelFeed(sessionId, {}, { runs: () => [run], activity: () => undefined })
+    harness.timers.fire()
+
+    // when - the host resolves a click on the idle node's row
+    harness.tui.openUrl?.(panelActionUrl({ kind: "dag-node", runId: run.runId, nodeId: "node-idle" }))
+    const painted = (await popupReady).render(60).join("\n")
+
+    // then
+    expect(painted).toContain("Idle node")
+    expect(painted).toContain("node-idle")
+    expect(painted).not.toContain("node-panel")
+
+    claimed.dispose()
   })
 })

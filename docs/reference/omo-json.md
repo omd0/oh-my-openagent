@@ -247,7 +247,7 @@ The block may live at the shared top level, in `[native]`, or in profile layers,
 ### `side_panel` (Senpi harness)
 
 The optional `side_panel` block controls the omo side panel (`schema/side-panel.ts`): a right-hand
-column in the Senpi TUI carrying session, goal, context, usage, subagent, tool, git and memory
+column in the Senpi TUI carrying session, workflow DAG, goal, context, usage, subagent, tool, git and memory
 state. The transcript reflows into the remaining width instead of being covered. The column
 needs the **fullscreen TUI** (`--tui-mode fullscreen`, or `tuiMode: "fullscreen"` in senpi's
 settings); in the default regular mode the same sections render as a block above the editor
@@ -260,7 +260,7 @@ instead. The panel is **off by default** because it rearranges the whole screen.
 | `min_columns` | integer | `120` | In fullscreen mode, terminals narrower than this keep the classic single-column layout; the panel hides itself rather than squeezing the transcript. |
 | `clickable` | boolean | `true` | Paint file and subagent rows as OSC 8 links, so a mouse click opens the same viewer a command would. Set it to `false` on a terminal that mangles hyperlinks. |
 | `usage_poll_seconds` | integer | `150` | Retired. The engine now reads subscription usage itself, on each provider's own cadence, so this value is ignored. It is still accepted so an existing file keeps loading. |
-| `sections` | object | all `true` except `usage` | Per-section switches: `session`, `goal`, `context`, `usage`, `agents`, `tools`, `files`, `memory`. `usage` is `false` by default (see below). |
+| `sections` | object | all `true` except `usage` | Per-section switches: `session`, `dag`, `goal`, `context`, `usage`, `agents`, `tools`, `files`, `memory`. `usage` is `false` by default (see below). |
 
 Rows are clickable because the fullscreen renderer already captures the mouse and activates OSC 8
 hyperlinks; the panel paints its rows as links to a private scheme and claims the renderer's URL
@@ -268,6 +268,67 @@ callback while it is mounted, handing every other URL straight back. Clicking a 
 clicking a subagent opens its card followed by everything that child recorded, rendered by the task
 engine itself - the same text `task_output` would give you. `/side-panel-diff` reaches the file
 viewer by name; it is registered only when the panel is enabled for the run.
+
+In fullscreen mode, move the pointer over the sidebar and use the mouse wheel to scroll it
+independently of the chat. The normal view shows a compact Changes preview with the number of
+remaining files. Click **Show more** to fill the sidebar with changed files, up to the safety
+limit below, then scroll to reach entries that do not fit on screen. **Show less** returns to the normal sidebar sections.
+Wheel input over the chat still scrolls the transcript. The regular-mode widget fallback keeps
+its compact file list. A vertical divider and inner padding separate the column from the chat.
+
+Changes use red for deleted files, yellow for modified files, and green for new files. Added-line
+counts are green and removed-line counts are red, even on a modified file. Larger counts use
+stronger shades, capped at the highest shade for large diffs. Large counts use compact units such
+as `+12.4k/-2.1M`; filenames shorten first to keep the counts visible. Gradients use the terminal's
+256-color palette, so their appearance depends on terminal color support.
+
+Line counts align to the right edge of each file row, with filenames on the left. Long filenames
+end in `..` to stay within the available space; clicking still opens the original file path.
+
+For oversized lists, **Show more** displays at most 500 files and a **Changes too large** warning
+with the omitted count. A file with at least 100,000 changed lines is marked as huge. These are
+display limits; they do not alter files or their git status.
+
+Panel git commands retain at most 1 MiB per output stream and use a five-second timeout. Status
+retains at most 2,000 file entries. An incomplete list is marked **Changes too large** rather than
+reported as clean or as an exact total. Diff viewers refuse oversized output, more than 5,000 lines,
+or lines longer than 4,096 characters; a known change of 100,000 lines or more shows the warning
+without generating its full diff.
+
+An open diff viewer supports mouse-wheel scrolling over the viewer, Up/Down, Page Up/Page Down,
+and Home/End. Its scroll position is separate from the chat and sidebar behind it.
+
+#### Native workflow DAG view
+
+The `dag` section embeds workflow graphs in the fullscreen column. It reads the current session's
+workflow state directly, including node status, dependency edges and live activity. It does not
+need Herdr, tmux, a separate viewer process or the `omo-herdr-dag` extension. The section stays
+empty when the session has no workflows.
+
+Enable the panel in `.omo/omo.jsonc`:
+
+```jsonc
+{
+  "side_panel": {
+    "enabled": true,
+    "sections": { "dag": true }
+  }
+}
+```
+
+Then start `omo --tui-mode fullscreen`, or use `omo --tui-mode fullscreen --omo-side-panel` to
+enable the panel for one run. Click a run header or node title to inspect its graph and details, or use
+`/side-panel-dag` for keyboard access. The graph is read-only; workflow execution and control
+remain on the existing `workflow` tool and `/dag` commands. Set `sections.dag` to `false` to keep
+the other panel sections without the graph. The existing below-editor DAG status widget remains
+available, including in regular TUI mode and terminals too narrow for the side panel.
+
+In the graph viewer, Tab or `n` selects the next node, Shift-Tab or `p` selects the previous
+node, and `r` switches runs. Arrow keys, `j`/`k`, Page Up/Page Down and the mouse wheel scroll;
+Esc or `q` closes the viewer. Node details include the prompt, dependencies, task ID, elapsed
+time and any error. Long edges that cannot fit between adjacent box rows remain listed in the
+target node's dependencies. The viewer is also available in regular mode while the panel's
+`dag` section is enabled.
 
 A child the engine is holding rather than running - a host session whose daemon went away, one
 caught by a draining host, or simply one the engine detached when its session ended - is counted
@@ -572,6 +633,7 @@ OpenGateway has a built-in unlimited provider concurrency default, so it does no
 
 | Field | Type | Default |
 |-------|------|---------|
+| `routing_profile` | string naming `profiles.<name>` | unset |
 | `default_execution_mode` | `auto \| in-process \| process` | `auto` |
 | `process_runner` | `host \| child-process` | `host` |
 | `host_engine_policy` | `upgrade \| fallback` | `upgrade` |
@@ -642,7 +704,61 @@ A record of profile name to a partial view (`schema/config.ts` `OmoConfigProfile
 }
 ```
 
-Profiles are inert until activated (see [Profile activation](#profile-activation)). When active, the profile's base keys fold over the shared base, and the profile's harness block folds over the top-level harness block. A config profile is a different thing from a model profile: see [Model profiles](#model-profiles-native-harness).
+Profiles are inert until activated (see [Profile activation](#profile-activation)) or selected for task routing as described below. When active, the profile's base keys fold over the shared base, and the profile's harness block folds over the top-level harness block. A config profile is a different thing from a model profile: see [Model profiles](#model-profiles-native-harness).
+
+#### Selecting task routing during a session
+
+OmO Native can use different agent and category configurations with the same
+main session model. Define the configurations under `profiles` and optionally
+set `task.routing_profile` to the default name:
+
+```jsonc
+{
+  "model_profile": "chatgpt-subscription/gpt-6.1-sol",
+  "task": { "routing_profile": "everyday" },
+  "profiles": {
+    "everyday": {
+      "categories": {
+        "deep-low": {
+          "model": "chatgpt-subscription/gpt-6-luna-fast",
+          "reasoning": "high"
+        }
+      }
+    },
+    "careful": {
+      "categories": {
+        "deep-low": {
+          "model": "chatgpt-subscription/gpt-6.1-sol",
+          "reasoning": "high"
+        }
+      },
+      "agents": {
+        "explore": {
+          "model": "chatgpt-subscription/gpt-6.1-sol",
+          "reasoning": "low"
+        }
+      }
+    }
+  }
+}
+```
+
+Use `/routing careful` in a running session to select that routing configuration.
+`/routing` reports the current selection and available names.
+`/routing default` clears the session override and returns to
+`task.routing_profile`, or the existing base configuration when the option is
+unset. No launch environment variable or restart is required.
+
+The session override takes precedence over `task.routing_profile`. Routing
+selection applies the chosen profile's categories, agents, and model references;
+it keeps the session's engine settings and exclusion policies. A profile's
+`model_profile` does not change the main model through this command.
+Already-planned children keep their recorded models.
+
+The choice is saved in the session's active branch. Resuming the session or
+forking that branch restores it; a new session starts at the configured default.
+An unknown profile leaves the current selection unchanged. The command does
+not edit `omo.json` or change another session's selection.
 
 ### Model references and model strings
 

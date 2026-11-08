@@ -4,7 +4,9 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { colorizeDiff, gitDiffArgs, readGitDiff, UNTRACKED_DIRECTORY_FILE_CAP } from "./diff"
+import { colorizeDiff, DIFF_VIEWER_LINE_MAX_CHARS, gitDiffArgs, readGitDiff, UNTRACKED_DIRECTORY_FILE_CAP } from "./diff"
+import { DIFF_VIEWER_ROW_CAP } from "../constants"
+import { PANEL_GIT_OUTPUT_MAX_BYTES } from "./read"
 import type { PanelExec } from "./read"
 
 describe("gitDiffArgs", () => {
@@ -431,5 +433,117 @@ describe("readGitDiff untracked directory cap", () => {
     // then
     expect(diffs).toBe(UNTRACKED_DIRECTORY_FILE_CAP)
     expect(rows.at(-1)?.text).toBe("... 7 more files in build/")
+  })
+})
+
+describe("readGitDiff oversized refusal", () => {
+  test("#given known line counts at the oversized threshold #when read #then nothing is spawned and the change is refused", async () => {
+    // given
+    let spawns = 0
+    const exec: PanelExec = async () => {
+      spawns += 1
+      return { stdout: "+x\n", code: 0 }
+    }
+
+    // when
+    const rows = await readGitDiff(exec, "/repo", { xy: " M", path: "big.txt", added: 60_000, removed: 40_000 })
+
+    // then
+    expect(rows).toEqual([{ text: "Changes too large", color: "warning" }])
+    expect(spawns).toBe(0)
+  })
+
+  test("#given unknown line counts #when read #then the diff proceeds instead of refusing", async () => {
+    // given
+    const exec: PanelExec = async () => ({ stdout: "+++ b/new.txt\n+hello", code: 1 })
+
+    // when
+    const rows = await readGitDiff(exec, "/repo", { xy: "??", path: "new.txt" })
+
+    // then
+    expect(rows.map((row) => row.text)).toEqual(["+++ b/new.txt", "+hello"])
+  })
+
+  test("#given a diff larger than the byte ceiling #when coloured #then it is refused before any split", () => {
+    // given
+    const line = `${"a".repeat(299)}\n`
+    const repeats = Math.ceil((PANEL_GIT_OUTPUT_MAX_BYTES + 1024) / Buffer.byteLength(line, "utf8"))
+    const output = line.repeat(repeats)
+
+    // when
+    const rows = colorizeDiff(output)
+
+    // then
+    expect(output.split("\n")).toHaveLength(repeats + 1)
+    expect(repeats).toBeLessThan(DIFF_VIEWER_ROW_CAP)
+    expect(rows).toEqual([{ text: "Changes too large", color: "warning" }])
+  })
+
+  test("#given a newline-heavy payload past the row cap #when coloured #then it is refused even with no content", () => {
+    // given
+    const output = "\n".repeat(DIFF_VIEWER_ROW_CAP + 1)
+
+    // when
+    const rows = colorizeDiff(output)
+
+    // then
+    expect(rows).toEqual([{ text: "Changes too large", color: "warning" }])
+  })
+
+  test("#given one line past the per-line ceiling #when coloured #then it is refused, while the ceiling itself passes", () => {
+    // given
+    const over = "x".repeat(DIFF_VIEWER_LINE_MAX_CHARS + 1)
+    const exact = "x".repeat(DIFF_VIEWER_LINE_MAX_CHARS)
+
+    // when
+    const refused = colorizeDiff(over)
+    const kept = colorizeDiff(exact)
+
+    // then
+    expect(refused).toEqual([{ text: "Changes too large", color: "warning" }])
+    expect(kept.map((row) => row.text)).toEqual([exact])
+  })
+
+  test("#given per-file diffs whose retained bytes pass the ceiling #when a directory is read #then the aggregate is refused", async () => {
+    // given: each file alone fits every per-diff ceiling (bytes, rows, line length),
+    // so only the sequential aggregate can refuse the directory.
+    const oneFile = `${"z".repeat(3999)}\n`.repeat(100)
+    const exec: PanelExec = async (_command, args) => {
+      if (args.includes("ls-files")) return { stdout: "build/a.txt\0build/b.txt\0build/c.txt\0", code: 0 }
+      return { stdout: oneFile, code: 1 }
+    }
+
+    // when
+    const rows = await readGitDiff(exec, "/repo", { xy: "??", path: "build/" })
+
+    // then
+    expect(Buffer.byteLength(oneFile, "utf8")).toBeLessThan(PANEL_GIT_OUTPUT_MAX_BYTES)
+    expect(colorizeDiff(oneFile)).toHaveLength(100)
+    expect(rows).toEqual([{ text: "Changes too large", color: "warning" }])
+  })
+
+  test("#given a per-file result flagged tooLarge #when a directory is read #then the aggregate is refused", async () => {
+    // given
+    const exec: PanelExec = async (_command, args) => {
+      if (args.includes("ls-files")) return { stdout: "build/a.txt\0", code: 0 }
+      return { stdout: "", code: 0, tooLarge: true }
+    }
+
+    // when
+    const rows = await readGitDiff(exec, "/repo", { xy: "??", path: "build/" })
+
+    // then
+    expect(rows).toEqual([{ text: "Changes too large", color: "warning" }])
+  })
+
+  test("#given a single-file read that reports failure #when read #then it reports the run failed instead of a diff", async () => {
+    // given
+    const exec: PanelExec = async () => ({ stdout: "", code: 1, failed: true })
+
+    // when
+    const rows = await readGitDiff(exec, "/repo", { xy: " M", path: "x.txt" })
+
+    // then
+    expect(rows).toEqual([{ text: "git diff could not be run", color: "error" }])
   })
 })

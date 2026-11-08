@@ -11,6 +11,7 @@ type SandboxableSpawnArgs = ReflectionSpawnArgs
 
 type SandboxSurface = "reflection"
 import { canonicalAbsentPath, canonicalPath, defaultWhich, resolveInnerCommand } from "./sandbox-paths"
+import { executableVisibilityMounts } from "./sandbox-executable"
 import { probeBwrapUsability, type SandboxUsability } from "./sandbox-bwrap-probe"
 import { SandboxUnavailableError, type SandboxPolicy } from "./sandbox-contracts"
 
@@ -163,6 +164,7 @@ export function buildPathSandboxTransform<T extends SandboxableSpawnArgs>(
         "--ro-bind", "/", "/",
         "--dev-bind", "/dev", "/dev",
         "--tmpfs", "/tmp",
+        ...executableVisibilityMounts(innerCommand, writableDirs),
         ...writableDirs.flatMap((writableDir) => ["--bind", writableDir, writableDir]),
         "--chdir", spawnArgs.cwd,
         "--", innerCommand, ...spawnArgs.args,

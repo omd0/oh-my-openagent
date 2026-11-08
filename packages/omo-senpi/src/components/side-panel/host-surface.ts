@@ -1,4 +1,4 @@
-import { createPanelBody } from "./body"
+import { createPanelBody, createPanelScrollState, type PanelScrollState } from "./body"
 import { isRecord } from "./guards"
 import { parsePanelActionUrl } from "./links"
 import {
@@ -22,6 +22,14 @@ import type {
 } from "./types"
 
 /**
+ * The column as the layout engine reads it: a `scroll` node wrapping the content painter, with the
+ * scroll state this surface owns. Its render and invalidate serve a paint that bypasses the layout.
+ */
+interface PanelScrollColumn extends PanelComponent {
+  readonly [key: symbol]: unknown
+}
+
+/**
  * The only file that touches the host renderer.
  *
  * `setLayoutRoot` and the viewport marker are public pi-tui API, and senpi hands a
@@ -33,7 +41,10 @@ import type {
 export function createPanelHostSurface(deps: PanelHostSurfaceDeps): PanelHostSurface {
   let theme: PanelTheme | undefined
   const clickable = (): boolean => deps.clickable && deps.onAction !== undefined
-  const body = createPanelBody(deps.source, () => theme, clickable)
+  // The column is the only surface that divides: the widget fallback sits above the editor and keeps
+  // its plain margin. Scroll position belongs to this surface, so a new session starts at the top.
+  const body = createPanelBody(deps.source, () => theme, clickable, { divided: () => kind === "column" })
+  const scroll = createPanelScrollState()
   const defer = deps.defer ?? queueMicrotask
   let kind: PanelSurfaceKind = "dark"
   let installed: InstalledColumn | undefined
@@ -120,7 +131,7 @@ export function createPanelHostSurface(deps: PanelHostSurfaceDeps): PanelHostSur
     }
     // The original root is installed by identity: it is itself a layout component,
     // and wrapping it in an adapter would strip its own scroll layout.
-    const root = createColumnRoot(originalRoot, body, candidate, deps)
+    const root = createColumnRoot(originalRoot, body, scroll, candidate, deps)
     candidate.setLayoutRoot(root)
     installed = { tui: candidate, originalRoot, root }
     kind = "column"
@@ -193,6 +204,10 @@ export function createPanelHostSurface(deps: PanelHostSurfaceDeps): PanelHostSur
     kind(): PanelSurfaceKind {
       return kind
     },
+    resetScroll(): void {
+      scroll.reset()
+      renderer?.requestRender(false)
+    },
     requestRender(): void {
       if (reattachIfRebuilt()) return
       renderer?.requestRender(false)
@@ -233,20 +248,37 @@ export function createPanelHostSurface(deps: PanelHostSurfaceDeps): PanelHostSur
 }
 
 /**
+ * The column as the layout engine reads it: a scroll node around the content painter, with the
+ * scroll state this surface owns. The engine lays the content out at its full height, slices the
+ * visible window, and routes wheel events over the column to the state; the transcript keeps the
+ * host's own scrolling.
+ */
+function createScrollColumn(body: PanelComponent, state: PanelScrollState): PanelScrollColumn {
+  return {
+    render: (width: number) => body.render(width),
+    invalidate: () => body.invalidate?.(),
+    [PI_TUI_LAYOUT_NODE]: () => ({ type: "scroll" as const, component: body, state }),
+  }
+}
+
+/**
  * The hstack that puts the transcript and the panel side by side. Entries are rebuilt
  * on every layout query so a resize re-resolves the panel width, and `visible` drops
- * the column on terminals too narrow to carry both.
+ * the column on terminals too narrow to carry both. The scroll column is both the panel's
+ * entry and one of the root's children, so containment walks and layout see the same node.
  */
 function createColumnRoot(
   originalRoot: PanelComponent,
   body: PanelComponent,
+  scroll: PanelScrollState,
   tui: PanelHostTui,
   deps: PanelHostSurfaceDeps,
 ): PanelLayoutRoot {
+  const column = createScrollColumn(body, scroll)
   const entries = (): readonly PanelStackEntry[] => [
     { component: originalRoot, basis: 0, grow: 1, shrink: 1, minSize: MIN_TRANSCRIPT_COLUMNS },
     {
-      component: body,
+      component: column,
       basis: deps.width(terminalColumns(tui)),
       grow: 0,
       shrink: 0,
@@ -255,7 +287,7 @@ function createColumnRoot(
   ]
   return {
     // Containment walks expect children on a container-shaped root.
-    children: [originalRoot, body],
+    children: [originalRoot, column],
     [PI_TUI_LAYOUT_NODE]: () => ({ type: "hstack" as const, entries: entries(), gap: 0, align: "stretch" as const }),
     // If anything ever paints this without the layout engine, behave exactly like
     // the unwrapped session rather than rendering a broken column.

@@ -245,12 +245,47 @@ report_other_installs() { # report_other_installs <launcher> <remove flag> <work
   exec 3<&-
 }
 
-write_receipt() { # write_receipt <channel> <version> <asset> <launcher> <profile>
+receipt_owns_pi() { # receipt_owns_pi <candidate> <launcher>
+  local receipt_path receipt_launcher
+  [ -f "$HOME/.omo/install.json" ] || return 1
+  receipt_path="$(sed -n 's/.*"piPath"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$HOME/.omo/install.json" | head -n1)"
+  receipt_launcher="$(sed -n 's/.*"binPath"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$HOME/.omo/install.json" | head -n1)"
+  [ "$receipt_path" = "$1" ] && [ "$receipt_launcher" = "$2" ] && [ -f "$1" ] && [ ! -L "$1" ] && [ -f "$2" ] && [ ! -L "$2" ] && [ "$(sha256_of "$1")" = "$(sha256_of "$2")" ]
+}
+
+install_pi_alias() { # install_pi_alias <verified source> <alias path> <owned before update>
+  local source="$1" alias="$2" owned_before_update="$3" candidate
+  for candidate in "$alias" "$alias.cmd" "$alias.ps1"; do
+    if [ -e "$candidate" ] || [ -L "$candidate" ]; then
+      if [ "$candidate" = "$alias" ] && { [ "$owned_before_update" = 1 ] || receipt_owns_pi "$alias" "$source"; }; then
+        : # This is the regular-file alias recorded by our receipt and matching the verified payload.
+      else
+        say "  Could not install pi alias: ${candidate} already exists and is not a verified OmO alias; it was left untouched."
+        return 1
+      fi
+    fi
+  done
+  cp "$source" "${alias}.new.$$"
+  chmod +x "${alias}.new.$$"
+  mv -f "${alias}.new.$$" "$alias"
+  return 0
+}
+
+report_pi_path_winner() {
+  local alias="$1" first
+  first="$(command -v pi 2>/dev/null || true)"
+  if [ -n "$first" ] && [ "$first" != "$alias" ]; then
+    say "  Warning: ${first} wins on PATH before the OmO pi alias at ${alias}; typing pi will run the earlier command. The existing command was not changed."
+  fi
+}
+
+write_receipt() { # write_receipt <channel> <version> <asset> <launcher> <profile> <pi path or empty>
   mkdir -p "$HOME/.omo"
-  local tmp
+  local tmp alias_field=""
   tmp="$(mktemp "$HOME/.omo/install.json.XXXXXX")"
-  printf '{\n  "method": "standalone",\n  "channel": "%s",\n  "version": "%s",\n  "asset": "%s",\n  "binPath": "%s",\n  "profileEdits": [%s],\n  "installedAt": "%s"\n}\n' \
-    "$1" "$2" "$3" "$4" "${5:+\"$5\"}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$tmp"
+  if [ -n "$6" ]; then alias_field="$(printf '  \"piPath\": \"%s\",\n' "$6")"; fi
+  printf '{\n  "method": "standalone",\n  "channel": "%s",\n  "version": "%s",\n  "asset": "%s",\n  "binPath": "%s",\n%s  "profileEdits": [%s],\n  "installedAt": "%s"\n}\n' \
+    "$1" "$2" "$3" "$4" "$alias_field" "${5:+\"$5\"}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$tmp"
   mv -f "$tmp" "$HOME/.omo/install.json"
 }
 
@@ -274,12 +309,14 @@ main() {
   fi
   [ -n "${HOME:-}" ] || fail "HOME is not set"
 
-  local asset version dir launcher work expected actual profile channel
+  local asset version dir launcher pi_alias work expected actual profile channel pi_path="" prior_pi_owned=0
   asset="$(detect_asset)"
   version="$(resolve_version "$want" "$base")"
   channel="$want"; [[ "$want" =~ $VERSION_RE ]] && channel="pinned"
   dir="${OMO_INSTALL_DIR:-$HOME/.local/bin}"
   launcher="${dir}/omo"
+  pi_alias="${dir}/pi"
+  receipt_owns_pi "$pi_alias" "$launcher" && prior_pi_owned=1
   say "Installing omo ${version} (${asset}) into ${dir}"
 
   work="$(mktemp -d "${TMPDIR:-/tmp}/omo-install.XXXXXX")"
@@ -302,6 +339,12 @@ main() {
     mv -f "${launcher}.new.$$" "$launcher"
   fi
 
+  # The alias is the exact already-verified launcher payload; no second asset is fetched.
+  if install_pi_alias "$launcher" "$pi_alias" "$prior_pi_owned"; then
+    pi_path="$pi_alias"
+    report_pi_path_winner "$pi_alias"
+  fi
+
   if [ "${asset#*-musl}" != "$asset" ] && ! ls /usr/lib/libstdc++.so.6 /lib/libstdc++.so.6 >/dev/null 2>&1; then
     say "  musl build needs libstdc++: apk add libstdc++ libgcc"
   fi
@@ -309,7 +352,7 @@ main() {
 
   profile="$(ensure_path "$dir")"
   report_other_installs "$launcher" "$remove_other_installs" "$work"
-  write_receipt "$channel" "$version" "$asset" "$launcher" "$profile"
+  write_receipt "$channel" "$version" "$asset" "$launcher" "$profile" "$pi_path"
   say ""
   say "omo ${version} is installed at ${launcher}."
   if [ -n "$profile" ]; then

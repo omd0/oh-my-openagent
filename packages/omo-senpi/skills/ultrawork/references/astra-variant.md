@@ -38,7 +38,7 @@ are named in its prompt and read there, not here.
 5. CLEANUP: Follow the creation-time resource todo rule in Bootstrap section 3.
    Before recording QA, tear down QA processes, sessions, ports, containers,
    scripts and QA temp paths inside `$RUN_TMP`; record read-back receipts.
-   Remove the run root and eligible worktrees at task end under Task resources.
+   Remove the run root at task end under Task resources.
 
 ## evidence-step
 8. Evidence captured on the same commit and environment stays valid;

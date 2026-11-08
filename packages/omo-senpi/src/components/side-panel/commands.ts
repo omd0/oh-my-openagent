@@ -1,11 +1,15 @@
 import { sanitizeTerminalText } from "./format/sanitize"
+import { formatCount } from "./format/counts"
 import { readGitDiff } from "./git/diff"
 import type { PanelGitEntry } from "./git/parse"
 import type { PanelExec } from "./git/read"
-import { DIFF_VIEWER_ROW_CAP } from "./constants"
 import { openPanelViewer } from "./popups/open"
 import type { PanelGitStatus } from "./sections/files"
 import type { PanelOverlayUi } from "./types"
+
+const SELECTOR_FILE_CAP = 500
+const SELECTOR_LABEL_MAX_CHARS = 512
+const VIEWER_TITLE_MAX_CHARS = 512
 
 /**
  * The named route to the panel's viewers.
@@ -34,9 +38,11 @@ export interface PanelCommandDeps {
 }
 
 function fileOptionLabel(file: PanelGitEntry): string {
-  const delta = file.added === undefined && file.removed === undefined ? "" : `  +${file.added ?? 0}/-${file.removed ?? 0}`
-  // The host's select list folds newlines only, and a git path may carry any byte.
-  return sanitizeTerminalText(`${file.xy} ${file.path}${delta}`)
+  const delta = file.added === undefined && file.removed === undefined
+    ? ""
+    : `  +${formatCount(file.added ?? 0)}/-${formatCount(file.removed ?? 0)}`
+  // Bound the source before sanitizing; the host's select list folds newlines only.
+  return sanitizeTerminalText(`${file.xy} ${file.path}${delta}`.slice(0, SELECTOR_LABEL_MAX_CHARS))
 }
 
 /** `/side-panel-diff`: pick a changed file, then show its diff. Registered by `index.ts`. */
@@ -48,6 +54,10 @@ export async function runDiffCommand(deps: PanelCommandDeps, ctx: PanelCommandCo
     return
   }
   const status = deps.status()
+  if (status?.tooLarge === true) {
+    ui.notify("Changes too large", "warning")
+    return
+  }
   if (status === undefined || status.files.length === 0) {
     ui.notify("No changes in the working copy.", "info")
     return
@@ -56,10 +66,16 @@ export async function runDiffCommand(deps: PanelCommandDeps, ctx: PanelCommandCo
     ui.notify("This host exposes no exec, so git cannot be run.", "warning")
     return
   }
-  const options = status.files.map(fileOptionLabel)
+  const files = status.files.slice(0, SELECTOR_FILE_CAP)
+  const omitted = status.files.length - files.length
+  if (omitted > 0) ui.notify(`Showing ${SELECTOR_FILE_CAP} of ${formatCount(status.files.length)} changed files.`, "info")
+  const labels = files.map(fileOptionLabel)
+  const options = new Set(labels).size === labels.length
+    ? labels
+    : labels.map((label, index) => `${index + 1}. ${label}`.slice(0, SELECTOR_LABEL_MAX_CHARS))
   const choice = await ui.select("Show the diff of", options)
   if (choice === undefined) return
-  const file = status.files[options.indexOf(choice)]
+  const file = files[options.indexOf(choice)]
   if (file === undefined) return
   await openFileDiff(ui, deps.exec, status, file)
 }
@@ -72,10 +88,5 @@ export async function openFileDiff(
   file: PanelGitEntry,
 ): Promise<void> {
   const rows = await readGitDiff(exec, status.root, file)
-  // A generated or vendored file can diff to hundreds of thousands of lines; the viewer is for reading.
-  const shown =
-    rows.length > DIFF_VIEWER_ROW_CAP
-      ? [...rows.slice(0, DIFF_VIEWER_ROW_CAP), { text: `... ${rows.length - DIFF_VIEWER_ROW_CAP} more lines`, color: "dim" as const }]
-      : rows
-  await openPanelViewer(ui, `${file.path}  (diff, read-only)`, shown)
+  await openPanelViewer(ui, `${file.path.slice(0, VIEWER_TITLE_MAX_CHARS)}  (diff, read-only)`, rows)
 }

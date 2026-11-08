@@ -12,15 +12,12 @@ import {
 } from "@oh-my-opencode/senpi-task"
 
 import type { CapturedUi } from "./runtime-context"
-import {
-  backgroundWidgetRows,
-  buildWidgetRows,
-  isSuspended,
-  isTerminal,
-  LIVE_STATUS_REFRESH_MS,
-} from "./status-row-format"
+import { buildWidgetRows, isSuspended, isTerminal, LIVE_STATUS_REFRESH_MS } from "./status-row-format"
 import { createTreeCostFeed } from "./subagent-cost-feed"
 import type { StoreMutation } from "./store-mutation-observer"
+import type { InlineInteraction, InlineWorker } from "./inline-interaction"
+import { renderAgentTree, visibleAgentPaths } from "./subagent-ui/widget"
+import { taskIdOfPath, taskThreads } from "./task-inline"
 
 export { buildWidgetRows, formatTaskRow } from "./status-row-format"
 
@@ -61,6 +58,8 @@ export interface StatusUiTimers {
 export interface TaskStatusUiDeps {
   readonly manager: StatusUiManager
   readonly runtime: StatusUiRuntime
+  // The one focus menu shared with the DAG widget: this widget owns the "task" group of it.
+  readonly interaction?: InlineInteraction
   readonly debounceMs?: number
   readonly timers?: StatusUiTimers
   readonly logger?: StatusUiLogger
@@ -113,6 +112,7 @@ export function createTaskStatusUi(deps: TaskStatusUiDeps): TaskStatusUi {
 
   function syncNow(): void {
     if (!refreshCachedRecords()) {
+      releaseRows()
       clearLiveRefresh()
       return
     }
@@ -132,34 +132,99 @@ export function createTaskStatusUi(deps: TaskStatusUiDeps): TaskStatusUi {
   function renderCachedRecords(): void {
     const ui = deps.runtime.ui()
     if (ui === undefined) {
+      releaseRows()
       clearLiveRefresh()
       return
     }
     const mode = deps.runtime.mode()
     if (mode !== undefined && mode !== "tui") {
+      releaseRows()
       clearLiveRefresh()
       return
     }
     const records = cachedRecords
-    const background = deps.manager.wasBackground === undefined
-      ? []
-      : records.filter((record) => deps.manager.wasBackground?.(record.task_id) === true)
-    const renderedAt = now()
-    const liveStats = deps.manager.runStatsSnapshot?.bind(deps.manager)
-    const terminalWidth = deps.terminalWidth?.() ?? process.stdout.columns
-    const rows = deps.manager.wasBackground === undefined
-      ? buildWidgetRows(records)
-      : backgroundWidgetRows(background, liveActivity, renderedAt, liveStats, terminalWidth)
-    if (rows.length === 0) {
+    if (deps.manager.wasBackground === undefined) {
+      // A list-only manager (legacy seam) keeps the plain row list.
+      const rows = buildWidgetRows(records)
+      if (rows.length === 0) {
+        releaseRows()
+        clearLiveRefresh()
+        ui.setWidget(UI_KEY, undefined)
+        return
+      }
+      ui.setWidget(UI_KEY, rows, { placement: "belowEditor" })
       clearLiveRefresh()
+      return
+    }
+    const background = records.filter((record) => deps.manager.wasBackground?.(record.task_id) === true)
+    renderUpstreamRows(ui, background, now())
+    // Only a live child needs the 250 ms repaint; a parked one renders a still row.
+    if (background.some((record) => !isTerminal(record.status) && !isSuspended(record))) {
+      scheduleLiveRefresh()
+    } else clearLiveRefresh()
+  }
+
+  // The ordinary task rows, painted by the upstream agent widget. DAG-owned children are left to the DAG
+  // widget, which already paints them, so no worker appears twice.
+  function renderUpstreamRows(ui: CapturedUi, background: readonly TaskRecord[], renderedAt: number): void {
+    const ordinary = background.filter((record) => record.owner?.kind !== "dag")
+    const threads = taskThreads(ordinary, {
+      activity: liveActivity,
+      statsOf: (taskId) => deps.manager.runStatsSnapshot?.(taskId),
+      now: renderedAt,
+    })
+    const workers: InlineWorker[] = []
+    for (const path of visibleAgentPaths(threads)) {
+      const taskId = taskIdOfPath(path)
+      if (taskId !== undefined) workers.push({ kind: "task", taskId })
+    }
+    deps.interaction?.setGroup("task", deps.runtime.sessionId(), workers)
+    const subscribe = ui.onTerminalInput
+    if (deps.interaction !== undefined && subscribe !== undefined) {
+      deps.interaction.bindInput((handler) => subscribe.call(ui, handler))
+    }
+    if (threads.length === 0) {
       ui.setWidget(UI_KEY, undefined)
       return
     }
-    ui.setWidget(UI_KEY, rows, { placement: "belowEditor" })
-    // Only a live child needs the 250 ms repaint; a parked one renders a still row.
-    if (deps.manager.wasBackground !== undefined && background.some((record) => !isTerminal(record.status) && !isSuspended(record))) {
-      scheduleLiveRefresh()
-    } else clearLiveRefresh()
+    const interaction = deps.interaction
+    ui.setWidget(
+      UI_KEY,
+      (tui, theme) => {
+        interaction?.attach(tui)
+        return {
+          render: (width: number): string[] => {
+            try {
+              return renderAgentTree(threads, width, theme, {
+                showBrowserHint: false,
+                animate: true,
+                loaderStyle: "circle",
+                ...(interaction === undefined
+                  ? {}
+                  : {
+                      decorate: (thread, line, columns) => {
+                        const taskId = taskIdOfPath(thread.path)
+                        return taskId === undefined ? line : interaction.decorate({ kind: "task", taskId }, line, columns)
+                      },
+                    }),
+              })
+            } catch (error) {
+              containRenderFault(() => {
+                throw error
+              })
+              return []
+            }
+          },
+          invalidate: (): void => {},
+        }
+      },
+      { placement: "belowEditor" },
+    )
+  }
+
+  // Releases this widget's rows from the shared focus menu, so a cleared widget claims no key or link.
+  function releaseRows(): void {
+    deps.interaction?.setGroup("task", undefined, [])
   }
 
   function scheduleSync(): void {
@@ -222,6 +287,7 @@ export function createTaskStatusUi(deps: TaskStatusUiDeps): TaskStatusUi {
 
   function dispose(): void {
     treeCost.dispose()
+    releaseRows()
     if (pending !== undefined) {
       timers.clear(pending)
       pending = undefined

@@ -56,7 +56,7 @@ function scanObject(text, open) {
     cursor = skipBlank(text, keyEnd)
     if (text[cursor] !== ":") throw new SyntaxError(`expected : at ${cursor}`)
     const value = scanValue(text, skipBlank(text, cursor + 1))
-    members.push({ key: JSON.parse(text.slice(keyStart, keyEnd)), keyStart, valueEnd: value.end, object: value.object })
+    members.push({ key: JSON.parse(text.slice(keyStart, keyEnd)), keyStart, valueStart: skipBlank(text, cursor + 1), valueEnd: value.end, object: value.object })
     cursor = skipBlank(text, value.end)
     trailingComma = text[cursor] === ","
     if (trailingComma) cursor = skipBlank(text, cursor + 1)
@@ -109,11 +109,19 @@ function setIn(document, path, key, value) {
   const next = structuredClone(document)
   let cursor = next
   for (const segment of path) {
-    if (cursor[segment] === undefined) cursor[segment] = {}
+    if (!Object.hasOwn(cursor, segment)) Object.defineProperty(cursor, segment, { value: {}, enumerable: true, configurable: true, writable: true })
     cursor = cursor[segment]
   }
-  cursor[key] = value
+  Object.defineProperty(cursor, key, { value, enumerable: true, configurable: true, writable: true })
   return next
+}
+
+function setJsoncText(text, node, member, value) {
+  if (member === undefined) throw new TypeError("cannot replace a missing member")
+  const line = lineIndent(text, member.keyStart)
+  const indent = line ?? ""
+  const replacement = JSON.stringify(value, null, 2).replaceAll("\n", `\n${indent}  `)
+  return `${text.slice(0, member.valueStart)}${replacement}${text.slice(member.valueEnd)}`
 }
 
 /**
@@ -136,6 +144,36 @@ export function insertJsoncMember(text, path, key, value) {
     ? insertInto(text, node, key, value)
     : insertInto(text, node, path[depth], nest(path.slice(depth + 1), key, value))
   if (!isDeepStrictEqual(parseJsonc(next), setIn(parseJsonc(text), path, key, value))) {
+    throw new SyntaxError("the edited document does not parse back to the intended value")
+  }
+  return next
+}
+
+/** Replaces or inserts one member while preserving every other byte in the JSONC document. */
+export function setJsoncMember(text, path, key, value) {
+  if (!Array.isArray(path) || path.some((segment) => typeof segment !== "string") || typeof key !== "string") {
+    throw new TypeError("path and key must be strings")
+  }
+  const start = skipBlank(text, 0)
+  if (text[start] !== "{") throw new SyntaxError("the document is not an object")
+  let node = scanObject(text, start).object
+  let depth = 0
+  for (; depth < path.length; depth += 1) {
+    const member = node.members.find((candidate) => candidate.key === path[depth])
+    if (member === undefined) break
+    if (member.object === undefined) throw new TypeError(`${path.slice(0, depth + 1).join(".")} is not an object`)
+    node = member.object
+  }
+  const original = parseJsonc(text)
+  if (original === null || typeof original !== "object" || Array.isArray(original)) throw new SyntaxError("the document is not an object")
+  let next
+  if (depth < path.length) {
+    next = insertInto(text, node, path[depth], nest(path.slice(depth + 1), key, value))
+  } else {
+    const existing = node.members.find((member) => member.key === key)
+    next = existing === undefined ? insertInto(text, node, key, value) : setJsoncText(text, node, existing, value)
+  }
+  if (!isDeepStrictEqual(parseJsonc(next), setIn(original, path, key, value))) {
     throw new SyntaxError("the edited document does not parse back to the intended value")
   }
   return next

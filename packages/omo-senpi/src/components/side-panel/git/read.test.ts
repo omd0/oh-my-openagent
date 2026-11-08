@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 
-import { readGitStatus, type PanelExec } from "./read"
+import { readGitStatus, type PanelExec, type PanelExecResult } from "./read"
 
 const STATUS =
   " D gone.txt\u0000R  renamed-new.txt\u0000renamed.txt\u0000 M tracked.txt\u0000M  with space.txt\u0000?? brand-new.txt\u0000"
@@ -14,7 +14,7 @@ interface Call {
 }
 
 function fakeExec(
-  reply: (args: string[]) => { stdout: string; code: number } | Error,
+  reply: (args: string[]) => PanelExecResult | Error,
   calls: Call[] = [],
 ): { exec: PanelExec; calls: Call[] } {
   const exec: PanelExec = async (_command, args, options) => {
@@ -98,5 +98,67 @@ describe("readGitStatus", () => {
     // then
     expect(status?.files).toHaveLength(5)
     expect(status?.files[0]?.added).toBeUndefined()
+  })
+})
+
+describe("readGitStatus bounds", () => {
+  test("#given status output larger than the byte ceiling #when read #then it is refused as tooLarge without parsing", async () => {
+    // given
+    const oneEntry = " M a.txt\u0000"
+    const overBytes = 1024 * 1024 + 64
+    const repeats = Math.ceil(overBytes / Buffer.byteLength(oneEntry, "utf8"))
+    const { exec } = fakeExec(() => ({ stdout: oneEntry.repeat(repeats), code: 0 }))
+
+    // when
+    const status = await readGitStatus(exec, "/repo")
+
+    // then
+    expect(status?.tooLarge).toBe(true)
+    expect(status?.files).toEqual([])
+  })
+
+  test("#given more entries than the file cap #when read #then only the first 2000 are retained as tooLarge", async () => {
+    // given
+    const entries = Array.from({ length: 2005 }, (_, index) => ` M f${index}.txt\u0000`).join("")
+    const { exec } = fakeExec((args) => (args[0] === "status" ? { stdout: entries, code: 0 } : { stdout: "", code: 0 }))
+
+    // when
+    const status = await readGitStatus(exec, "/repo")
+
+    // then
+    expect(status?.tooLarge).toBe(true)
+    expect(status?.files).toHaveLength(2000)
+    expect(status?.files[0]?.path).toBe("f0.txt")
+    expect(status?.files[1999]?.path).toBe("f1999.txt")
+  })
+
+  test("#given a status read flagged tooLarge #when read #then the flag is honoured as tooLarge", async () => {
+    // given: the bounded spawn cut the output, so the bytes on hand are untrustworthy
+    const { exec } = fakeExec((args) =>
+      args[0] === "status" ? { stdout: STATUS, code: 0, tooLarge: true } : { stdout: "", code: 0 },
+    )
+
+    // when
+    const status = await readGitStatus(exec, "/repo")
+
+    // then
+    expect(status?.tooLarge).toBe(true)
+    expect(status?.files).toEqual([])
+  })
+
+  test("#given a nonzero numstat read #when read #then the working copy is refused as tooLarge rather than clean", async () => {
+    // given
+    const { exec } = fakeExec((args) => {
+      if (args[0] === "status") return { stdout: STATUS, code: 0 }
+      if (args.includes("--cached")) return { stdout: STAGED, code: 0 }
+      return { stdout: UNSTAGED, code: 1 }
+    })
+
+    // when
+    const status = await readGitStatus(exec, "/repo")
+
+    // then
+    expect(status?.tooLarge).toBe(true)
+    expect(status?.files).toEqual([])
   })
 })

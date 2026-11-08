@@ -1,5 +1,5 @@
-import { afterEach, expect, test } from "bun:test"
-import { chmodSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs"
+import { afterEach, describe, expect, test } from "bun:test"
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, statSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
@@ -40,7 +40,11 @@ function fixture() {
   const payload = join(root, "payload", "transcript.json")
   // A host TMPDIR outside every writable bind is read-only inside the sandbox (EROFS), and one under /tmp is hidden by its tmpfs.
   const hostTmp = join(root, "host-tmp")
-  for (const dir of [worktree, gitCommonDir, join(root, "payload"), hostTmp]) mkdirSync(dir, { recursive: true })
+  // The fixture's own directories must look like a real private runtime root (0700). With the process
+  // umask's group bit left on, prepareTrustDirectory refuses them as unsafe ancestors and silently
+  // falls back to a temporary trust directory under the host OS temp dir - which the sandbox's private
+  // tmpfs correctly hides, so a marker meant to live inside the declared worktree ends up out of it.
+  for (const dir of [worktree, gitCommonDir, join(root, "payload"), hostTmp]) mkdirSync(dir, { recursive: true, mode: 0o700 })
   writeFileSync(payload, "payload")
   return { root, worktree, gitCommonDir, payload, hostTmp }
 }
@@ -116,8 +120,13 @@ test.skipIf(!bwrapUsable)("#given the real Linux reflection sandbox #when the ch
 test.skipIf(!bwrapUsable)("#given a parent trust generation outside the child's trust directory #when the sandboxed child adopts it #then the inherited marker's ancestors are attested and the generation verifies", async () => {
   // given
   const marker = async (worktree: string) => {
-    const { directory } = await prepareTrustDirectory(join(worktree, "parent-trust"), "linux")
+    const requested = join(worktree, "parent-trust")
+    const { directory, codes } = await prepareTrustDirectory(requested, "linux")
     roots.push(directory)
+    // The scenario is a marker INSIDE the child's declared worktree grant. A silent fallback to the
+    // host temp dir would move it outside every grant and make the assertion below untestable, so pin
+    // the success here instead of discovering the fallback as an ENOENT from the child.
+    expect({ directory, codes }).toEqual({ directory: requested, codes: [] })
     const generation = await writeTrustGeneration(directory, [], [], [])
     return { SENPI_ENGINE_TRUST: JSON.stringify({ file: generation.file, sha256: generation.sha256, user: generation.user }) }
   }
@@ -212,4 +221,140 @@ test("#given the macOS sandbox #when it wraps the child #then it never writes th
 
   // then
   expect(result.env[USERNS_ROOTS_ENV]).toBe("inherited")
+})
+
+// The bwrap wrapper rebinds "/" read-only and then mounts a private tmpfs over /tmp, so a reflection
+// child whose executable lives under /tmp is invisible to execvp ("bwrap: execvp ...: No such file or
+// directory") unless the wrapper mounts that exact executable file. These cases pin the repair at the
+// real boundary and, just as importantly, pin what it must NOT widen: only the executable leaf may
+// appear, never its sibling files or its directory, and never with write access.
+
+/** Resolved lazily: this file is imported on every platform, but the real-bwrap cases only run on Linux. */
+function localShellBinary(): string {
+  return realpathSync("/bin/sh")
+}
+
+/**
+ * Every case runs a test-owned copy of the local /bin/sh, never `process.execPath`. The sandbox
+ * contract is that the executable the transform was asked to run is the one it makes visible, so a
+ * build that mounts the parent runtime instead must fail these cases rather than pass by coincidence.
+ */
+function executableFixture() {
+  const setup = fixture()
+  const runtimeDir = join(setup.root, "runtime-bin")
+  mkdirSync(runtimeDir, { recursive: true, mode: 0o700 })
+  const executable = join(runtimeDir, "runtime-sh")
+  copyFileSync(localShellBinary(), executable)
+  chmodSync(executable, 0o755)
+  const secret = join(runtimeDir, "sibling-secret.txt")
+  writeFileSync(secret, "sibling-secret-token")
+  return { ...setup, runtimeDir, executable, secret }
+}
+
+async function runExecutableInSandbox(setup: ReturnType<typeof executableFixture>, executable: string, script: string) {
+  const env = { PATH: process.env.PATH, HOME: setup.root, TMPDIR: setup.hostTmp }
+  const transform = buildSandboxTransform({
+    policy: "required", worktreeDir: setup.worktree, gitCommonDir: setup.gitCommonDir, payloadPaths: [setup.payload],
+    command: executable, env, platform: "linux",
+  })
+  const sandboxed = await transform({ ...spawnArgs(setup, env, ["-c", script]), command: executable })
+  const child = Bun.spawn([sandboxed.command, ...sandboxed.args], {
+    cwd: setup.worktree, env: sandboxed.env, stdout: "pipe", stderr: "pipe", timeout: 20_000,
+  })
+  const [code, stdout, stderr] = await Promise.all([child.exited, new Response(child.stdout).text(), new Response(child.stderr).text()])
+  return { code, stdout, stderr }
+}
+
+describe("reflection sandbox executable visibility across the private tmpfs", () => {
+  test.skipIf(!bwrapUsable)("#given the child executable lives under the sandbox's private tmpfs #when the child starts #then that exact executable file is mounted and runs", async () => {
+    // given: the defect only exists for a child executable the private /tmp tmpfs hides
+    const setup = executableFixture()
+    expect(setup.executable.startsWith("/tmp/")).toBe(true)
+    expect(setup.executable).not.toBe(process.execPath)
+
+    // when
+    const { code, stdout, stderr } = await runExecutableInSandbox(setup, setup.executable, "printf 'runtime-ok'")
+
+    // then
+    expect({ code, stdout, stderr }).toEqual({ code: 0, stdout: "runtime-ok", stderr: "" })
+  }, 60_000)
+
+  test.skipIf(!bwrapUsable)("#given a secret beside the private-tmpfs executable #when the child looks for it #then only the executable leaf is visible and the sibling stays hidden", async () => {
+    // given
+    const setup = executableFixture()
+    const script = `printf 'runtime-ok\\n'; if [ -e ${JSON.stringify(setup.secret)} ]; then printf 'secret-visible\\n'; else printf 'secret-hidden\\n'; fi`
+
+    // when
+    const { code, stdout, stderr } = await runExecutableInSandbox(setup, setup.executable, script)
+
+    // then: a directory grant (the tempting repair) would expose this sibling file to the child
+    expect({ code, stderr }).toEqual({ code: 0, stderr: "" })
+    expect(stdout).toBe("runtime-ok\nsecret-hidden\n")
+    // The secret exists where the child looked, so "hidden" is the private tmpfs, not a fixture miss.
+    expect(readFileSync(setup.secret, "utf8")).toBe("sibling-secret-token")
+  }, 60_000)
+
+  test.skipIf(!bwrapUsable)("#given the private-tmpfs executable #when the child tries to change it #then the mount is read-only and the host file is unchanged", async () => {
+    // given: chmod (not a write) is used because writing a running executable fails with ETXTBSY
+    // regardless of the mount, which would pass for the wrong reason. chmod succeeds on a host file
+    // and fails with EROFS only when the mount really is read-only.
+    const setup = executableFixture()
+    const before = readFileSync(setup.executable)
+    const script = `printf 'runtime-ok\\n'; if chmod 0700 "$0" 2>/dev/null; then printf 'runtime-writable\\n'; else printf 'runtime-readonly\\n'; fi`
+
+    // when
+    const { code, stdout, stderr } = await runExecutableInSandbox(setup, setup.executable, script)
+
+    // then
+    expect({ code, stderr }).toEqual({ code: 0, stderr: "" })
+    expect(stdout).toBe("runtime-ok\nruntime-readonly\n")
+    expect(readFileSync(setup.executable).equals(before)).toBe(true)
+    expect(statSync(setup.executable).mode & 0o777).toBe(0o755)
+  }, 60_000)
+
+  test.skipIf(!bwrapUsable)("#given the private-tmpfs executable and the declared worktree grant #when the child writes inside the worktree #then the write still succeeds", async () => {
+    // given
+    const setup = executableFixture()
+    const target = join(setup.worktree, "child-write.txt")
+    const script = `printf 'runtime-ok\\n'; printf 'granted' > ${JSON.stringify(target)} && printf 'wrote\\n'`
+
+    // when
+    const { code, stdout, stderr } = await runExecutableInSandbox(setup, setup.executable, script)
+
+    // then: the executable mount must not disturb the existing writable grants
+    expect({ code, stderr }).toEqual({ code: 0, stderr: "" })
+    expect(stdout).toBe("runtime-ok\nwrote\n")
+    expect(readFileSync(target, "utf8")).toBe("granted")
+  }, 60_000)
+
+  test.skipIf(!bwrapUsable)("#given a private-tmpfs command path that links to an executable outside the tmpfs #when the child starts #then the link path is mounted from the canonical target and runs", async () => {
+    // given: the lexical path is hidden by the tmpfs while its real file is not
+    const setup = executableFixture()
+    const link = join(setup.runtimeDir, "runtime-link")
+    const target = localShellBinary()
+    symlinkSync(target, link)
+    expect(link.startsWith("/tmp/")).toBe(true)
+    expect(target.startsWith("/tmp/")).toBe(false)
+
+    // when
+    const { code, stdout, stderr } = await runExecutableInSandbox(setup, link, "printf 'runtime-ok'")
+
+    // then
+    expect({ code, stdout, stderr }).toEqual({ code: 0, stdout: "runtime-ok", stderr: "" })
+  }, 60_000)
+
+  test.skipIf(!bwrapUsable)("#given a private-tmpfs command path that links to another file inside the tmpfs #when the child starts #then both the link and its target resolve and the sibling stays hidden", async () => {
+    // given: lexical and canonical paths are both under the private tmpfs
+    const setup = executableFixture()
+    const link = join(setup.runtimeDir, "runtime-link")
+    symlinkSync(setup.executable, link)
+    const script = `printf 'runtime-ok\\n'; if [ -e ${JSON.stringify(setup.secret)} ]; then printf 'secret-visible\\n'; else printf 'secret-hidden\\n'; fi`
+
+    // when
+    const { code, stdout, stderr } = await runExecutableInSandbox(setup, link, script)
+
+    // then
+    expect({ code, stderr }).toEqual({ code: 0, stderr: "" })
+    expect(stdout).toBe("runtime-ok\nsecret-hidden\n")
+  }, 60_000)
 })
