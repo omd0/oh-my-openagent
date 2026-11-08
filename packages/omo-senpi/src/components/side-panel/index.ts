@@ -3,7 +3,7 @@ import { resolveOmoSidePanelSettings, type OmoSidePanelSettings } from "@oh-my-o
 import type { ComponentContext, OmoSenpiComponent, SenpiExtensionAPI } from "../../extension/types"
 import { loadSenpiOmoConfig } from "../config-resolution"
 import type { PanelCommandContext } from "./commands"
-import { SIDE_PANEL_DAG_COMMAND, SIDE_PANEL_DIFF_COMMAND, SIDE_PANEL_FLAG, SIDE_PANEL_RUNTIME_FILE } from "./constants"
+import { SIDE_PANEL_DAG_COMMAND, SIDE_PANEL_DIFF_COMMAND, SIDE_PANEL_FLAG, SIDE_PANEL_OPEN_COMMAND, SIDE_PANEL_RUNTIME_FILE } from "./constants"
 import type { SidePanelController, SidePanelRuntimeOptions } from "./runtime"
 
 declare const OMO_SENPI_BUNDLED: boolean
@@ -50,6 +50,8 @@ export function createSidePanelComponent(options: SidePanelComponentOptions = {}
       let loading: Promise<SidePanelController> | undefined
       // Bumped on teardown, so an import still in flight cannot mount into a session that has ended.
       let epoch = 0
+      let panelMounted = false
+      let lastEventCtx: unknown
 
       const loadController = (): Promise<SidePanelController> => {
         loading ??= loadRuntime().then((create) => {
@@ -58,6 +60,31 @@ export function createSidePanelComponent(options: SidePanelComponentOptions = {}
         })
         return loading
       }
+
+      pi.registerCommand(SIDE_PANEL_OPEN_COMMAND, {
+        description: "Open the side panel in this session.",
+        handler: async (_args: string, commandCtx: PanelCommandContext): Promise<void> => {
+          if (panelMounted) {
+            commandCtx.ui?.notify("The side panel is already open.", "info")
+            return
+          }
+          const started = epoch
+          let loaded: SidePanelController
+          try {
+            loaded = await loadController()
+          } catch (error) {
+            loading = undefined
+            ctx.logger.warn("omo-senpi side panel: implementation did not load", { error: String(error) })
+            commandCtx.ui?.notify("The side panel could not be loaded.", "warning")
+            return
+          }
+          if (started !== epoch) return
+          const settings = { ...loadSettings(cwd), enabled: true }
+          await loaded.sessionStart(settings, lastEventCtx ?? commandCtx)
+          panelMounted = true
+          commandCtx.ui?.notify("Side panel opened.", "info")
+        },
+      })
 
       // The command exists only when the panel can be on for this run, read at load from the same
       // switches the mount reads; a session where the panel still stays dark is told so.
@@ -79,6 +106,7 @@ export function createSidePanelComponent(options: SidePanelComponentOptions = {}
       }
 
       pi.on("session_start", async (_payload: unknown, eventCtx: unknown): Promise<undefined> => {
+        lastEventCtx = eventCtx
         const settings = loadSettings(cwd)
         if (!isPanelEnabled(settings, ctx)) return undefined
         const started = epoch
@@ -93,7 +121,9 @@ export function createSidePanelComponent(options: SidePanelComponentOptions = {}
           return undefined
         }
         if (started !== epoch) return undefined
-        return await loaded.sessionStart(settings, eventCtx)
+        const result = await loaded.sessionStart(settings, eventCtx)
+        panelMounted = true
+        return result
       })
 
       // The host awaits these handlers and every tool call queues behind them, so each one starts the
@@ -107,6 +137,7 @@ export function createSidePanelComponent(options: SidePanelComponentOptions = {}
 
       const teardown = (): undefined => {
         epoch += 1
+        panelMounted = false
         return controller?.teardown()
       }
       // Only the committed end of a session: senpi fires session_shutdown on new, resume, fork and

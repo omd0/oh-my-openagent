@@ -53,7 +53,7 @@ const TASK_EVENTS = [
 ]
 const SKILL_INVOCATION_TRACKER_EVENTS = ["input", "tool_result", "session_start", "session_shutdown"]
 const DAG_LIFECYCLE_EVENTS = ["session_start", "session_shutdown", "before_agent_start", "session_resumed", "session_shutdown"]
-const TASK_COMMANDS = ["dag", "routing", "task-kill", "tasks"]
+const TASK_COMMANDS = ["dag", "routing", "task-kill", "tasks", "watch"]
 
 interface RecordedLog {
   level: "info" | "warn" | "error"

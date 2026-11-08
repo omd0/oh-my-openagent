@@ -36,6 +36,8 @@ import { createInlineInteraction, type InlineWorker } from "./inline-interaction
 import type { DagVisibleWorker } from "./dag-status-inline"
 import { registerDagCommands } from "./dag-commands"
 import type { DagWatchPort } from "./dag-subagent-service"
+import { registerWatchCommand } from "./watch-command"
+import { createSessionWatchService } from "./watch-service"
 import { createDagReloadSource } from "./dag-reload-source"
 import { createDagRuntime, type DagRuntime } from "./dag-runtime"
 import { registerDagTool } from "./register-workflow-tool"
@@ -276,6 +278,21 @@ export function createTaskComponent(options: TaskComponentOptions = {}): OmoSenp
           port: dagPort,
           stateDir: engine.stateDir,
           holder: watchHolder,
+        },
+      )
+      registerWatchCommand(
+        (name, options) => pi.registerCommand(name, options),
+        {
+          holder: watchHolder,
+          createWatch: (parentSessionId, stillBound) => ({
+            service: createSessionWatchService({
+              manager: engine.manager,
+              dag: dagPort,
+              parentSessionId,
+              stillBound,
+              stateDir: engine.stateDir,
+            }),
+          }),
         },
       )
 

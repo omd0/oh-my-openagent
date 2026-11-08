@@ -21,6 +21,8 @@ export interface TaskSubagentDeps {
   readonly stillBound: () => boolean
   readonly stateDir: string
   readonly dag: DagWatchPort
+  /** When "exclude", DAG-owned records are omitted (the unified /watch shows them as DAG nodes instead). */
+  readonly dagOwned?: "include" | "exclude"
 }
 
 export interface TaskSubagentWatch {
@@ -43,7 +45,10 @@ export function createTaskSubagentWatch(deps: TaskSubagentDeps): TaskSubagentWat
     return deps.manager.list({ scope: "parent-session", session_id: deps.parentSessionId })
       .map(({ record }) => record)
       .filter((record) => record.parent_session_id === deps.parentSessionId)
-      .filter((record) => record.owner === undefined || dagRunFor(record) !== undefined)
+      .filter((record) => {
+        if (deps.dagOwned === "exclude") return record.owner?.kind !== "dag"
+        return record.owner === undefined || dagRunFor(record) !== undefined
+      })
   }
   const recordFor = (taskId: string): TaskRecord | undefined => listRecords().find((record) => record.task_id === taskId)
   const dagRunFor = (record: TaskRecord): { readonly runId: DagRunId; readonly run: DagWatchRun; readonly nodeId: string } | undefined => {

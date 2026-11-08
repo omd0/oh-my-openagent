@@ -17,6 +17,9 @@ export const SIDE_PANEL_FLAG = "omo-side-panel"
 /** The named route to the file viewer, registered only when the panel can be on. */
 export const SIDE_PANEL_DIFF_COMMAND = "side-panel-diff"
 
+/** Opens the side panel in the current session; registered unconditionally. */
+export const SIDE_PANEL_OPEN_COMMAND = "side-panel"
+
 /**
  * The panel's implementation bundle, built beside `omo.js` from `runtime.ts` and imported on the
  * first session that has the panel on, so the entry bundle carries only the registration shell.
