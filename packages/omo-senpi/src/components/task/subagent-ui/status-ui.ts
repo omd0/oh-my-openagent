@@ -37,7 +37,7 @@ function lexicalParent(path: string): string | null {
 function treeParent(rows: StatusRow[], index: number): StatusRow | undefined {
   const depth = rows[index]?.prefix.length ?? 0;
   for (let cursor = index - 1; cursor >= 0; cursor--) {
-    if (rows[cursor]!.prefix.length < depth) return rows[cursor];
+    if (rows[cursor].prefix.length < depth) return rows[cursor];
   }
   return undefined;
 }

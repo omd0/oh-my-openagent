@@ -602,7 +602,7 @@ export class LiveAgentView {
     const footer = this.error
       ? "Ctrl+R Retry · Tab input/transcript · Esc tree · Ctrl+Q main"
       : `${this.editing ? "Enter steer · Tab browse" : "Tab steer · Home/End scroll · c context"} · Ctrl+O view:${this.detail} · Esc tree · Ctrl+Q main · ↑↓/PgUp/PgDn scroll · ${this.viewport.follow ? "following" : "scrolled"}`;
-    const input = ` ${this.input.render(inner)[0]!}`;
+    const input = ` ${this.input.render(inner)[0]}`;
     const status = this.theme.fg(
       this.steerStatus ? (this.steerFailed ? "error" : "muted") : this.error ? "error" : "muted",
       dialogText(

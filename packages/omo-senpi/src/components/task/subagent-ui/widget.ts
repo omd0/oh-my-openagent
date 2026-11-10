@@ -10,6 +10,8 @@ import type { LoaderStyle, ThreadView } from "./types";
 import { agentPath, agentTypeBadge, sanitizeText, threadMetrics } from "./ui-helpers";
 
 type AgentBadgeTheme = Pick<Theme, "fg" | "colors" | "style">;
+type AgentStatusRow = StatusRow & { thread: ThreadView };
+type AgentCandidate = { row: AgentStatusRow; index: number };
 
 /** Keep the right-hand counters intact; truncate the left side to the remaining columns. */
 function fitLine(left: string, right: string, width: number): string {
@@ -70,14 +72,14 @@ function agentStateColor(state: ThreadView["state"]): "error" | "warning" | "acc
 }
 
 function agentLine(
-  row: StatusRow,
+  row: AgentStatusRow,
   width: number,
   theme: AgentBadgeTheme,
   nerdFontIcons: boolean,
   animate: boolean,
   loaderStyle: LoaderStyle,
 ): string {
-  const thread = row.thread!;
+  const thread = row.thread;
   const badge = agentTypeBadge(
     thread.type,
     thread.color,
@@ -111,7 +113,7 @@ function takeWidgetRows(rows: StatusRow[], budget: number): StatusRow[] {
   const parents = new Map<number, number[]>();
   const stack: number[] = [];
   for (const [index, row] of rows.entries()) {
-    while (stack.length && rows[stack[stack.length - 1]!]!.prefix.length >= row.prefix.length)
+    while (stack.length && rows[stack[stack.length - 1]].prefix.length >= row.prefix.length)
       stack.pop();
     parents.set(index, [...stack]);
     stack.push(index);
@@ -122,15 +124,18 @@ function takeWidgetRows(rows: StatusRow[], budget: number): StatusRow[] {
     .filter(({ row }) => row.thread && row.path !== WIDGET_ROOT)
     .sort(
       (a, b) =>
-        statePriority(a.row.thread!.state) - statePriority(b.row.thread!.state) ||
+        statePriority((a.row as AgentStatusRow).thread.state) -
+          statePriority((b.row as AgentStatusRow).thread.state) ||
         lastStarted(b.row.thread) - lastStarted(a.row.thread) ||
         a.index - b.index,
-    );
+    ) as AgentCandidate[];
   const chosen = new Set<number>();
   let used = 0;
   for (const { index } of candidates) {
-    const needed = [...parents.get(index)!, index].filter((ancestor) => !chosen.has(ancestor));
-    const cost = needed.reduce((total, ancestor) => total + rowCost(rows[ancestor]!), 0);
+    const needed = [...(parents.get(index) as number[]), index].filter(
+      (ancestor) => !chosen.has(ancestor),
+    );
+    const cost = needed.reduce((total, ancestor) => total + rowCost(rows[ancestor]), 0);
     if (used + cost > budget) continue;
     for (const ancestor of needed) chosen.add(ancestor);
     used += cost;
@@ -162,12 +167,14 @@ export function renderAgentTree(
 ): string[] {
   const columns = Math.max(0, width);
   const rows = buildStatusTree(threads, new Set());
-  const agents = rows.filter((row) => row.thread && row.path !== WIDGET_ROOT);
+  const agents = rows.filter(
+    (row) => row.thread && row.path !== WIDGET_ROOT,
+  ) as AgentStatusRow[];
   if (!agents.length) return [];
   const live = agents.filter(
-    (row) => row.thread!.state === "starting" || row.thread!.state === "running",
+    (row) => row.thread.state === "starting" || row.thread.state === "running",
   ).length;
-  const paused = agents.filter((row) => row.thread!.state === "paused").length;
+  const paused = agents.filter((row) => row.thread.state === "paused").length;
   const heading = fitLine(
     theme.fg("accent", "Agents"),
     theme.fg("muted", `${live} live · ${paused} paused`),
@@ -182,8 +189,8 @@ export function renderAgentTree(
       lines.push(placeholderLine(row, columns, theme));
       continue;
     }
-    const line = agentLine(row, columns, theme, nerdFontIcons, animate, loaderStyle);
-    lines.push(decorate ? decorate(row.thread!, line, columns) : line);
+    const line = agentLine(row as AgentStatusRow, columns, theme, nerdFontIcons, animate, loaderStyle);
+    lines.push(decorate ? decorate(row.thread, line, columns) : line);
   }
   lines.push(agentWidgetStatus(live, omitted, columns, theme, showBrowserHint));
   return lines;
