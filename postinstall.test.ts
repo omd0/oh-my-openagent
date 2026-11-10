@@ -34,6 +34,10 @@ function runPostinstallInFixtureEnv(options: { readonly pathPrefix?: string; rea
         PATH: options.pathPrefix === undefined ? inheritedPath : `${options.pathPrefix}${delimiter}${inheritedPath}`,
         HOME: fixtureHome,
         USERPROFILE: fixtureHome,
+        TMPDIR: fixtureHome,
+        TEMP: fixtureHome,
+        TMP: fixtureHome,
+        BUN_TMPDIR: fixtureHome,
         XDG_CACHE_HOME: join(fixtureHome, "cache"),
       },
     })
