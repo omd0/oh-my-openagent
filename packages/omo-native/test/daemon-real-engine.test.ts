@@ -14,6 +14,7 @@ import { type ChildProcess, spawn, spawnSync } from "node:child_process"
 
 import { daemonDirectoryName } from "@code-yeongyu/senpi"
 import { runStatus as runProductionStatus } from "../bin/lib/daemon-operations.js"
+import { preparePluginLaunchSpec } from "../bin/lib/engine-prepare.js"
 import { resolveSenpi } from "../bin/lib/package-paths.js"
 
 const PACKAGE_ROOT = resolve(import.meta.dir, "..")
@@ -43,7 +44,7 @@ function sandbox() {
   roots.push(agentDir)
   const socket = join(agentDir, "rpc", "shards", "p-aaaaaaaaaaaaaaaa.sock")
   expect(Buffer.byteLength(`${socket}.next-99`)).toBeLessThanOrEqual(103)
-  mkdirSync(join(agentDir, "rpc", "shards"), { recursive: true })
+  mkdirSync(join(agentDir, "rpc", "shards"), { recursive: true, mode: 0o700 })
   const env = {
     ...process.env,
     TMPDIR: agentDir,
@@ -85,6 +86,7 @@ function run(command: string, args: readonly string[], env: NodeJS.ProcessEnv, d
 }
 
 async function ensureShard(socket: string, env: NodeJS.ProcessEnv) {
+  preparePluginLaunchSpec({ pluginRoot: resolve(PACKAGE_ROOT, "..", "omo-senpi", "plugin") })
   const result = await run("node", [
     resolveSenpi().cliPath,
     "host",
@@ -117,7 +119,7 @@ function childPidOf(parentPid: number): number {
   const child = output
     .split("\n")
     .map((line) => line.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/))
-    .find((match) => match !== null && Number(match[2]) === parentPid && match[3].includes("rpc"))
+    .find((match) => match !== null && Number(match[2]) === parentPid)
   if (child === undefined || child === null) throw new Error(`host child of ${parentPid} not found`)
   return Number(child[1])
 }
