@@ -92,6 +92,9 @@ export type PanelPopupFactory = (
  * click and a command open the same thing. senpi carries the identical context on events and
  * on commands, which is what lets a click reach the overlay at all.
  */
+/** The renderer modes the panel moves between; mirrors the host's own TUI mode. */
+export type PanelTuiMode = "regular" | "fullscreen"
+
 export interface PanelOverlayUi {
   notify(message: string, type?: "info" | "warning" | "error"): void
   /**
@@ -101,6 +104,10 @@ export interface PanelOverlayUi {
   onTerminalInput?(handler: (data: string) => { consume?: boolean; data?: string } | undefined): () => void
   /** Absent on hosts without the overlay seam; the viewers degrade to a notification. */
   custom?(factory: PanelPopupFactory, options?: Record<string, unknown>): Promise<unknown>
+  /** The live renderer's mode on hosts that expose one; absent otherwise. */
+  getTuiMode?(): PanelTuiMode | undefined
+  /** Rebuild the live renderer in `mode`; false when the host refuses the switch. */
+  setTuiMode?(mode: PanelTuiMode): boolean
 }
 
 /** The slice of senpi's ExtensionUIContext the panel drives. */
