@@ -69,6 +69,10 @@ function writeSettings(plan, nextText) {
   }
 }
 
+/**
+ * @param {string} agentDir
+ * @param {{ dryRun?: boolean, confirm: (question: string) => Promise<boolean> }} options
+ */
 export async function setupClaude(agentDir, { dryRun = false, confirm } = {}) {
   const plan = readPlan(agentDir)
   if (plan.blocked) {

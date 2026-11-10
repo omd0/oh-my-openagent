@@ -14,6 +14,7 @@ import {
   PI_TUI_VIEWPORT,
   SIDE_PANEL_ANCHOR_WIDGET_KEY,
   SIDE_PANEL_FLAG,
+  SIDE_PANEL_OPEN_COMMAND,
 } from "./constants"
 import { createSidePanelComponent } from "./index"
 import type { PanelMemory, PanelMemoryIdentity, PanelTimers } from "./types"
@@ -176,6 +177,216 @@ describe("side panel component", () => {
     expect(widgets.filter((call) => call.key === SIDE_PANEL_ANCHOR_WIDGET_KEY)).toHaveLength(1)
   })
 })
+
+describe("side panel session command", () => {
+  test.each([true, false])("#given enabled=%s and a mounted panel #when off runs #then the original layout returns", async (enabled) => {
+    const harness = mounted({ loadSettings: () => settings({ enabled }) })
+    const originalRoot = harness.tui.layoutRoot
+    await harness.pi.dispatch("session_start", {}, harness.host)
+    if (!enabled) await runPanelCommand(harness, "")
+    harness.attach()
+    expect(harness.tui.layoutRoot).not.toBe(originalRoot)
+
+    await runPanelCommand(harness, "off")
+
+    expect(harness.tui.layoutRoot).toBe(originalRoot)
+    expect(harness.widgets.at(-1)?.content).toBeUndefined()
+    await harness.pi.dispatch("turn_end", {}, harness.host)
+    expect(harness.tui.layoutRoot).toBe(originalRoot)
+  })
+
+  test("#given a panel closed by command #when opened again #then the column returns", async () => {
+    const harness = mounted()
+    await harness.pi.dispatch("session_start", {}, harness.host)
+    harness.attach()
+    await runPanelCommand(harness, "off")
+    const closedRoot = harness.tui.layoutRoot
+
+    await runPanelCommand(harness, "")
+    harness.attach()
+
+    expect(harness.tui.layoutRoot).not.toBe(closedRoot)
+    expect(columnRows(harness.tui).some((row) => row.startsWith("SESSION"))).toBe(true)
+    await harness.pi.dispatch("session_shutdown", {}, harness.host)
+  })
+
+  test("#given the panel is already off #when off runs #then no runtime is loaded", async () => {
+    let loads = 0
+    const harness = mounted({
+      loadSettings: () => settings({ enabled: false }),
+      loadRuntime: async () => {
+        loads += 1
+        return (await import("./runtime")).createSidePanelController
+      },
+    })
+    await harness.pi.dispatch("session_start", {}, harness.host)
+
+    await runPanelCommand(harness, "off")
+
+    expect(loads).toBe(0)
+    expect(harness.widgets).toEqual([])
+  })
+
+  test.each(["command", "session"])("#given a pending %s activation #when off runs #then late loading cannot mount", async (source) => {
+    const gate = deferred<undefined>()
+    const harness = mounted({
+      loadSettings: () => settings({ enabled: source === "session" }),
+      loadRuntime: async () => {
+        await gate.promise
+        return (await import("./runtime")).createSidePanelController
+      },
+    })
+    const starting = source === "session"
+      ? harness.rawDispatch("session_start", {}, harness.host)
+      : runPanelCommand(harness, "")
+
+    const stopping = runPanelCommand(harness, "off")
+    gate.resolve(undefined)
+    await Promise.all([starting, stopping])
+
+    expect(harness.widgets.some((call) => call.content !== undefined)).toBe(false)
+  })
+
+  test.each(["command", "session"])("#given a %s activation reading data #when off runs #then late completion does not prevent reopening", async (source) => {
+    const gate = deferred<undefined>()
+    const reading = deferred<undefined>()
+    const harness = mounted({
+      loadSettings: () => settings({ enabled: source === "session" }),
+      readTaskRecords: async () => {
+        reading.resolve(undefined)
+        await gate.promise
+        return []
+      },
+    })
+    const originalRoot = harness.tui.layoutRoot
+    const starting = source === "session"
+      ? harness.rawDispatch("session_start", {}, harness.host)
+      : runPanelCommand(harness, "")
+    await reading.promise
+
+    await runPanelCommand(harness, "off")
+    gate.resolve(undefined)
+    await starting
+    await runPanelCommand(harness, "")
+    harness.attach()
+
+    expect(harness.tui.layoutRoot).not.toBe(originalRoot)
+    await harness.pi.dispatch("session_shutdown", {}, harness.host)
+  })
+
+  test("#given a regular TUI session #when /side-panel runs #then fullscreen is requested before anything mounts", async () => {
+    // given: the host exposes the mode API and reports regular mode
+    const events: string[] = []
+    let liveWidgets: WidgetCall[] = []
+    const harness = mounted({}, {}, "/repo", {
+      getTuiMode: () => "regular",
+      setTuiMode: (mode: string) => {
+        events.push(`mode:${mode}:${liveWidgets.length}`)
+        return true
+      },
+    })
+    liveWidgets = harness.widgets
+
+    // when
+    await runPanelCommand(harness, "")
+
+    // then: the switch happens with nothing mounted, so the anchor sees the rebuilt renderer
+    expect(events).toEqual(["mode:fullscreen:0"])
+    expect(harness.widgets.map((call) => call.key)).toEqual([SIDE_PANEL_ANCHOR_WIDGET_KEY])
+  })
+
+  test("#given a panel opened through the mode switch #when off runs #then the pre-command mode is restored", async () => {
+    // given
+    const events: string[] = []
+    let liveWidgets: WidgetCall[] = []
+    const harness = mounted({}, {}, "/repo", {
+      getTuiMode: () => "regular",
+      setTuiMode: (mode: string) => {
+        events.push(`mode:${mode}:${liveWidgets.length}`)
+        return true
+      },
+    })
+    liveWidgets = harness.widgets
+    await runPanelCommand(harness, "")
+
+    // when
+    await runPanelCommand(harness, "off")
+
+    // then: the widget is cleared before the renderer goes back to the pre-command mode
+    expect(events).toHaveLength(2)
+    expect(events[0]).toBe("mode:fullscreen:0")
+    expect(events[1]?.startsWith("mode:regular:")).toBe(true)
+    expect(harness.widgets.at(-1)?.content).toBeUndefined()
+  })
+
+  test("#given a host that refuses the mode switch #when /side-panel runs #then nothing mounts and the user is told", async () => {
+    // given
+    const switches: string[] = []
+    const harness = mounted({}, {}, "/repo", {
+      getTuiMode: () => "regular",
+      setTuiMode: (mode: string) => {
+        switches.push(mode)
+        return false
+      },
+    })
+
+    // when
+    await runPanelCommand(harness, "")
+
+    // then
+    expect(switches).toEqual(["fullscreen"])
+    expect(harness.widgets).toEqual([])
+    expect(harness.notices).toContain("Close open overlays first, then run /side-panel again.")
+  })
+
+  test("#given a widget-mode panel already mounted #when /side-panel runs #then it upgrades to the fullscreen column", async () => {
+    // given: config mounted the panel before any mode switch, so the surface is the widget fallback
+    const switches: string[] = []
+    let upgraded = false
+    const harness = mounted(
+      { regularNoticeStateDir: testTempDir("omo-side-panel-upgrade-") },
+      {},
+      "/repo",
+      {
+        getTuiMode: () => (upgraded ? "fullscreen" : "regular"),
+        setTuiMode: (mode: string) => {
+          switches.push(mode)
+          upgraded = true
+          return true
+        },
+      },
+    )
+    await harness.pi.dispatch("session_start", {}, harness.host)
+    const regular: Record<PropertyKey, unknown> = {
+      requestRender() {},
+      terminal: { columns: 200 },
+    }
+    harness.attachWith(regular)
+    const anchorsBefore = harness.widgets.filter((call) => call.key === SIDE_PANEL_ANCHOR_WIDGET_KEY && call.content !== undefined).length
+
+    // when: the renderer is rebuilt with the layout seam and the command runs
+    const transcriptRoot = { render: () => ["transcript"], invalidate: () => {} }
+    regular["layoutRoot"] = transcriptRoot
+    regular["setLayoutRoot"] = (component: unknown) => {
+      regular["layoutRoot"] = component
+    }
+    regular[PI_TUI_VIEWPORT] = true
+    await runPanelCommand(harness, "")
+
+    // then: the panel reattaches through a fresh anchor and wraps the rebuilt root
+    expect(switches).toEqual(["fullscreen"])
+    expect(harness.notices).toContain("Side panel moved beside the transcript.")
+    expect(harness.widgets.filter((call) => call.key === SIDE_PANEL_ANCHOR_WIDGET_KEY && call.content !== undefined).length).toBe(anchorsBefore + 1)
+    harness.attachWith(regular)
+    expect(regular["layoutRoot"]).not.toBe(transcriptRoot)
+  })
+})
+
+async function runPanelCommand(harness: ReturnType<typeof mounted>, args: string): Promise<void> {
+  const handler = harness.pi.commands.find((command) => command.name === SIDE_PANEL_OPEN_COMMAND)?.options["handler"]
+  if (typeof handler !== "function") throw new Error("side panel command missing")
+  await handler(args, harness.host)
+}
 
 // --- wiring: the whole chain from config to painted rows ---------------------------
 

@@ -113,6 +113,8 @@ export const KNOWN_BUILT_RUNTIMES = [
   "packages/omo-codex/plugin/skills/browser/runtime/omowright/page-bundle.js",
   "packages/omo-senpi/plugin/skills/browser/runtime/omowright/index.js",
   "packages/omo-senpi/plugin/skills/browser/runtime/omowright/page-bundle.js",
+  "packages/omo-native/plugin/skills/browser/runtime/omowright/index.js",
+  "packages/omo-native/plugin/skills/browser/runtime/omowright/page-bundle.js",
 ]
 
 // Truly third-party npm-dependency bundles would be named here, one
@@ -247,7 +249,12 @@ export function collectShippedSourceFiles(): string[] {
     (file) => isScannedSourceFile(file) && !THIRD_PARTY_EXCLUDED_BUNDLES.includes(file) && isUnderRoots(file, roots),
   )
   const probe = evaluateBuiltRuntimeProbe({
-    known: KNOWN_BUILT_RUNTIMES,
+    // The native distribution is staged by its separate payload job. Once staged,
+    // both files are required; the root build always stages the other two editions.
+    known: KNOWN_BUILT_RUNTIMES.filter((runtime) =>
+      !runtime.startsWith("packages/omo-native/plugin/")
+      || existsSync(path.join(WORKSPACE_ROOT, "packages/omo-native/plugin")),
+    ),
     present: (runtime) => readSourceFile(path.join(WORKSPACE_ROOT, runtime)) !== null,
     discovered: discoverPluginBuiltRuntimes(),
     ci: process.env.CI,

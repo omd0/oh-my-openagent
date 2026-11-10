@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// omo-codex-install:92352976bc4c64aa24e660fad21f81e1d632ecfb91655d40a5f74627272a5d1b:279fdc6ef0fc0f5b159f042831dc86ce7a6e071463b1f2a655f82d421f45ad24
+// omo-codex-install:5fe466a0bfaeb4b556ff6f3fe5deff484976ccbf3ebd389bb5dfd20ac1f6a534:bd4389a8a986de9780e6aae550ee3e8592ae9952a4860e7cbf4146c5acca92f7
 var __esm = (fn, res, err) => () => {
   if (fn)
     try {
@@ -20058,7 +20058,8 @@ var OmoSidePanelSectionsShape = {
   agents: boolean2(),
   tools: boolean2(),
   files: boolean2(),
-  memory: boolean2()
+  memory: boolean2(),
+  dag: boolean2()
 };
 var OmoSidePanelSectionsLayerSchema = object(OmoSidePanelSectionsShape).partial().strict();
 var OmoSidePanelSectionsSchema = OmoSidePanelSectionsLayerSchema.extend({
@@ -20069,7 +20070,8 @@ var OmoSidePanelSectionsSchema = OmoSidePanelSectionsLayerSchema.extend({
   agents: boolean2().default(true),
   tools: boolean2().default(true),
   files: boolean2().default(true),
-  memory: boolean2().default(true)
+  memory: boolean2().default(true),
+  dag: boolean2().default(true)
 }).strict();
 var OmoSidePanelSettingsShape = {
   enabled: boolean2(),
@@ -20094,7 +20096,8 @@ var OmoSidePanelSettingsSchema = OmoSidePanelSettingsLayerSchema.extend({
     agents: true,
     tools: true,
     files: true,
-    memory: true
+    memory: true,
+    dag: true
   })
 }).strict();
 
@@ -20151,6 +20154,7 @@ var OmoTaskDagSettingsSchema = object({
   max_prompt_bytes: number2().int().positive().default(262144)
 }).strict();
 var OmoTaskSettingsSchema = object({
+  routing_profile: string2().optional(),
   isolation: OmoTaskIsolationSchema.default(isolationDefaults),
   default_execution_mode: _enum(["auto", "in-process", "process"]).default("auto"),
   process_runner: _enum(["host", "child-process"]).default("host"),
@@ -20201,6 +20205,7 @@ var OmoTaskWarningsLayerSchema = object({
   unavailable_categories: boolean2().optional()
 }).strict();
 var OmoTaskSettingsLayerSchema = object({
+  routing_profile: string2().optional(),
   isolation: OmoTaskIsolationLayerSchema.optional(),
   default_execution_mode: _enum(["auto", "in-process", "process"]).optional(),
   process_runner: _enum(["host", "child-process"]).optional(),

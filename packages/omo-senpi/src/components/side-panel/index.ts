@@ -5,6 +5,7 @@ import { loadSenpiOmoConfig } from "../config-resolution"
 import type { PanelCommandContext } from "./commands"
 import { SIDE_PANEL_DAG_COMMAND, SIDE_PANEL_DIFF_COMMAND, SIDE_PANEL_FLAG, SIDE_PANEL_OPEN_COMMAND, SIDE_PANEL_RUNTIME_FILE } from "./constants"
 import type { SidePanelController, SidePanelRuntimeOptions } from "./runtime"
+import type { PanelTuiMode } from "./types"
 
 declare const OMO_SENPI_BUNDLED: boolean
 
@@ -37,8 +38,8 @@ export function createSidePanelComponent(options: SidePanelComponentOptions = {}
       // No default on purpose: a registered default is what `getFlag` reports when the flag
       // was never passed, which would make `side_panel.enabled` unreachable. Note the host
       // sets a boolean extension flag to `true` whatever value follows it, and refuses a
-      // `--no-` form outright, so the CLI can only force the panel ON; switching it off is
-      // an omo.json edit. A `false` can still arrive through the SDK's `flagValues`, and it
+      // `--no-` form outright, so the CLI can only force the panel ON; `/side-panel off`
+      // closes it for the session. A `false` can still arrive through the SDK's `flagValues`, and it
       // is honored below.
       pi.registerFlag(SIDE_PANEL_FLAG, {
         type: "boolean",
@@ -51,6 +52,7 @@ export function createSidePanelComponent(options: SidePanelComponentOptions = {}
       // Bumped on teardown, so an import still in flight cannot mount into a session that has ended.
       let epoch = 0
       let panelMounted = false
+      let switchedFromMode: PanelTuiMode | undefined
       let lastEventCtx: unknown
 
       const loadController = (): Promise<SidePanelController> => {
@@ -62,10 +64,38 @@ export function createSidePanelComponent(options: SidePanelComponentOptions = {}
       }
 
       pi.registerCommand(SIDE_PANEL_OPEN_COMMAND, {
-        description: "Open the side panel in this session.",
-        handler: async (_args: string, commandCtx: PanelCommandContext): Promise<void> => {
+        description: "Open the side panel in this session, or close it with /side-panel off.",
+        handler: async (args: string, commandCtx: PanelCommandContext): Promise<void> => {
+          if (args.trim() === "off") {
+            const restoreMode = switchedFromMode
+            teardown()
+            if (restoreMode !== undefined) commandCtx.ui?.setTuiMode?.(restoreMode)
+            commandCtx.ui?.notify("Side panel closed.", "info")
+            return
+          }
+          // The right column only exists in fullscreen, so a regular session is switched before
+          // mounting and the pre-command mode is restored by `/side-panel off`. Hosts without the
+          // mode seam keep the widget fallback the mount path already handles.
+          const ui = commandCtx.ui
+          const currentMode = ui?.getTuiMode?.()
+          let movedToFullscreen = false
+          if (currentMode === "regular") {
+            if (ui?.setTuiMode?.("fullscreen") === false) {
+              ui?.notify("Close open overlays first, then run /side-panel again.", "warning")
+              return
+            }
+            switchedFromMode = currentMode
+            movedToFullscreen = true
+          }
           if (panelMounted) {
-            commandCtx.ui?.notify("The side panel is already open.", "info")
+            if (movedToFullscreen) {
+              // The mounted panel survived the renderer rebuild as its widget fallback; one
+              // refresh takes the existing widget-to-column upgrade seam onto the new root.
+              controller?.refresh(lastEventCtx ?? commandCtx)
+              ui?.notify("Side panel moved beside the transcript.", "info")
+            } else {
+              ui?.notify("The side panel is already open.", "info")
+            }
             return
           }
           const started = epoch
@@ -81,6 +111,7 @@ export function createSidePanelComponent(options: SidePanelComponentOptions = {}
           if (started !== epoch) return
           const settings = { ...loadSettings(cwd), enabled: true }
           await loaded.sessionStart(settings, lastEventCtx ?? commandCtx)
+          if (started !== epoch) return
           panelMounted = true
           commandCtx.ui?.notify("Side panel opened.", "info")
         },
@@ -122,6 +153,7 @@ export function createSidePanelComponent(options: SidePanelComponentOptions = {}
         }
         if (started !== epoch) return undefined
         const result = await loaded.sessionStart(settings, eventCtx)
+        if (started !== epoch) return undefined
         panelMounted = true
         return result
       })
@@ -138,6 +170,7 @@ export function createSidePanelComponent(options: SidePanelComponentOptions = {}
       const teardown = (): undefined => {
         epoch += 1
         panelMounted = false
+        switchedFromMode = undefined
         return controller?.teardown()
       }
       // Only the committed end of a session: senpi fires session_shutdown on new, resume, fork and

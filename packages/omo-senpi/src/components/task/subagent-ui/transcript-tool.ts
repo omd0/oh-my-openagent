@@ -1,7 +1,6 @@
 // Vendored from pi-subagent-manager 1.7.0 (MIT, see ./LICENSE and ./PROVENANCE.md).
 import {
   ToolExecutionComponent,
-  type ToolDefinition,
   createBashToolDefinition,
   createReadToolDefinition,
   createEditToolDefinition,
@@ -13,7 +12,7 @@ import {
 import { Text, stripTerminalSequences, type TUI } from "@earendil-works/pi-tui";
 
 /** Only trusted pi built-ins: observing a transcript must never execute extension renderers. */
-type Renderers = Pick<ToolDefinition<any, any>, "renderCall" | "renderResult">;
+type Renderers = NonNullable<ConstructorParameters<typeof ToolExecutionComponent>[4]>;
 const renderers = new Map<string, Renderers>(
   [
     createBashToolDefinition(process.cwd()),
@@ -31,8 +30,8 @@ const renderers = new Map<string, Renderers>(
 
 // Native edit call previews otherwise read today's file asynchronously. An observer must
 // use the recorded result.diff, not inspect a possibly different worktree on every paint.
-const edit = renderers.get("edit")!;
-const editCall = edit.renderCall!;
+const edit = renderers.get("edit") as Renderers;
+const editCall = edit.renderCall as NonNullable<Renderers["renderCall"]>;
 edit.renderCall = (args, theme, context) =>
   editCall(args, theme, { ...context, argsComplete: false });
 
@@ -65,7 +64,7 @@ function safeText(value: string): string {
 }
 
 /** Sanitize args, content AND details before trusted renderers interpolate them. */
-function sanitize(value: unknown, seen = new WeakSet<object>(), depth = 0): any {
+function sanitize(value: unknown, seen = new WeakSet<object>(), depth = 0): unknown {
   if (typeof value === "string") return safeText(value);
   if (!value || typeof value !== "object") return typeof value === "bigint" ? String(value) : value;
   if (seen.has(value)) return "[Circular]";

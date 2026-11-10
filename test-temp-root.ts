@@ -69,7 +69,7 @@ export function removeAbandonedRunRoots(
 }
 
 const osTempDir = tmpdir()
-const tempEnvironment = ["TMPDIR", "TEMP", "TMP"].map((name) => [name, process.env[name]] as const)
+const tempEnvironment = ["TMPDIR", "TEMP", "TMP", "BUN_TMPDIR"].map((name) => [name, process.env[name]] as const)
 removeAbandonedRunRoots(osTempDir)
 const runRoot = mkdtempSync(join(osTempDir, RUN_ROOT_PREFIX))
 writeFileSync(join(runRoot, OWNER_PID_FILE), String(process.pid))
@@ -86,6 +86,7 @@ const infrastructureEntries = new Set<string>([OWNER_PID_FILE, "oh-my-opencode.l
 const processScopedDir = mkdtempSync(join(runRoot, "omo-test-process-"))
 infrastructureEntries.add(basename(processScopedDir))
 process.env.OMO_TEST_PROCESS_TMPDIR = processScopedDir
+process.env.BUN_TMPDIR = processScopedDir
 
 /** Marks a directory a preload creates for the whole process, so the leak check does not report it. */
 export function markTestInfrastructureDir(path: string): void {

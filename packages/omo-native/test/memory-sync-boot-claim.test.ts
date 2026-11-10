@@ -57,6 +57,7 @@ function launchHost(entry: Entry, table: string | undefined) {
   const home = mkdtempSync(join(tmpdir(), "omo-boot-"))
   mkdirSync(join(home, "tmp"))
   const agentDir = join(home, "agent")
+  mkdirSync(agentDir, { mode: 0o700 })
   const socket = join(home, "h.sock")
   // A fresh environment: variables other test files set in this process must not steer the launch.
   const env: Record<string, string> = {

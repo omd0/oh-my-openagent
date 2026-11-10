@@ -10,13 +10,21 @@ import { removeAbandonedRunRoots, removeRunRootAside } from "./test-temp-root"
 describe("test temp root teardown", () => {
   test("#given a removed run root #when another child starts #then temp variables point to the original live directories", () => {
     const script = `
-      import { existsSync } from "node:fs";
-      const names = ["TMPDIR", "TEMP", "TMP"];
+      import { existsSync, writeFileSync } from "node:fs";
+      import { join, relative } from "node:path";
+      const names = ["TMPDIR", "TEMP", "TMP", "BUN_TMPDIR"];
       const previous = names.map(name => process.env[name]);
       const { runTestTempRootTeardown } = await import(${JSON.stringify(join(import.meta.dir, "test-temp-root.ts"))});
       const root = process.env.TEMP;
+      const runtimeTemp = process.env.BUN_TMPDIR;
+      if (!runtimeTemp || relative(root, runtimeTemp).startsWith("..")) {
+        throw new Error("Bun runtime cache is outside this test run");
+      }
+      const runtimeCache = join(runtimeTemp, "runtime-native-cache.fixture");
+      writeFileSync(runtimeCache, "runtime cache");
       runTestTempRootTeardown();
       if (existsSync(root)) throw new Error("run root was not removed");
+      if (existsSync(runtimeCache)) throw new Error("runtime cache was not removed");
       const child = Bun.spawnSync([process.execPath, "-e", ${JSON.stringify(`
         const fs = require("node:fs");
         if (!fs.existsSync(process.env.TEMP ?? process.env.TMP ?? "")) {
