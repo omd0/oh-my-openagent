@@ -1,10 +1,10 @@
 [English](README.md) | [简体中文](README.zh-cn.md) | [日本語](README.ja.md) | [Русский](README.ru.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Français](README.fr.md) | [Deutsch](README.de.md) | [Português (Brasil)](README.pt-br.md) | [Italiano](README.it.md)
 
 > [!NOTE]
-> **OmO 5.0: OmO ❤️ Pi**
-> Install it with `curl -fsSL https://get.omo.dev/install.sh | bash`. Memory system, CodeMode, Anthropic subscriptions, all covered.
-> [![OmO Herdr DAG - live OmO workflow DAGs in a Herdr side pane](./.github/assets/omo-herdr-dag.png)](https://github.com/jc01rho/omo-herdr-dag)
-> *Just type "mass ulw" with your prompt - now you are the master of graph engineering. Multi-model ultracode, together with a better memory system. (The right panel is [omo-herdr-dag](https://github.com/jc01rho/omo-herdr-dag).)*
+> **This is myomo — release `5.1.64-myomo.1`.**
+> You are viewing [omd0/oh-my-openagent](https://github.com/omd0/oh-my-openagent), a fork with native side-panel session controls.
+> Install from **this repository** using the instructions below. The upstream installer and npm packages install upstream OmO.
+> See [myomo releases](https://github.com/omd0/oh-my-openagent/releases) for this fork's release notes.
 
 > **Sponsors**
 > These are our sponsors. They help keep OmO going as a personal side project.
@@ -30,7 +30,7 @@
 
 **Your tool for real work. But it's an agent.**
 
-[![GitHub Release](https://img.shields.io/github/v/release/code-yeongyu/oh-my-openagent?color=369eff&labelColor=black&logo=github&style=flat-square)](https://github.com/code-yeongyu/oh-my-openagent/releases)
+[![GitHub Release](https://img.shields.io/github/v/release/omd0/oh-my-openagent?include_prereleases&color=369eff&labelColor=black&logo=github&style=flat-square)](https://github.com/omd0/oh-my-openagent/releases)
 [![downloads](https://img.shields.io/endpoint?url=https%3A%2F%2Fomo.dev%2Fapi%2Fdownloads&style=flat-square)](https://omo.dev)
 [![GitHub Contributors](https://img.shields.io/github/contributors/code-yeongyu/oh-my-openagent?color=c4f042&labelColor=black&style=flat-square)](https://github.com/code-yeongyu/oh-my-openagent/graphs/contributors)
 [![GitHub Stars](https://img.shields.io/github/stars/code-yeongyu/oh-my-openagent?color=ffcb47&labelColor=black&style=flat-square)](https://github.com/code-yeongyu/oh-my-openagent/stargazers)
@@ -44,16 +44,22 @@
 
 OmO is one `omo` command that turns your tokens into finished work: research across ten thousand sources, a deck people actually get, backends, frontends, code. It runs on senpi, our fork of [pi](https://github.com/badlogic/pi-mono), with everything below built in.
 
-## Install
+## Install myomo from this repository
+
+Prerequisites: Git, Bun, and Node.js 24 or newer. Build the native plugin payload, then install the local `omo-ai` package:
 
 ```bash
-curl -fsSL https://get.omo.dev/install.sh | bash
+git clone --branch dev https://github.com/omd0/oh-my-openagent.git myomo
+cd myomo
+bun install
+bun run build:omo-native
+npm install --global ./packages/omo-native
 omo
 ```
 
-On Windows, in PowerShell: `irm https://get.omo.dev/install.ps1 | iex`. The script installs the native `omo` binary for your OS and CPU into `~/.local/bin`, checks it against the release checksums, and falls back to GitHub Releases when the mirror is unreachable. Add `-s -- beta` (or a version such as `-s -- 5.1.1`) after `bash` to pick another channel. Windows CMD, fixing your `PATH`, updating and uninstalling are covered at [omo.dev/docs/install](https://omo.dev/docs/install).
+The installed command is still `omo`. Keep the clone: the local package installation can link to it. To install a particular myomo release, check out its tag before running the build and install commands.
 
-Prefer a package manager? `bun add -g omo-ai` (or `npm i -g omo-ai`) installs the same OmO. The package is `omo-ai`; the unrelated `omo` package on npm is someone else's.
+`get.omo.dev`, `npm i -g omo-ai`, and `bun add -g omo-ai` distribute upstream OmO, not this fork. The upstream [installation guide](docs/guide/install.md) remains available for reference.
 
 Open your project, run `omo`, describe the job. That's the whole setup.
 
@@ -61,7 +67,30 @@ In a session, `/thinking <level>` sets how hard the model thinks (`/thinking` al
 
 Coming from the OpenCode edition or LazyCodex? Run `omo setup` once. It carries your provider keys, custom providers, MCP servers, skills and model picks across. `omo doctor` then shows which task categories your providers can run and what the old install left behind, and `omo doctor --models` shows which model each category and agent runs and in what order (keep one out everywhere with [`exclude_models`](docs/reference/omo-json.md#exclude_models-native-harness)). The full walkthrough is [Migrating from OpenCode](docs/guide/migrating-from-opencode.md).
 
-To update, run the install line again (a package-manager install updates with `omo update`). `rm ~/.local/bin/omo` removes the binary install; `bun remove -g omo-ai` (or `npm uninstall -g omo-ai`) removes the package install.
+To update myomo, pull the desired changes in this clone, rebuild with `bun run build:omo-native`, and repeat the local package installation. Use `npm uninstall -g omo-ai` to remove that installation.
+
+## myomo vs upstream OmO
+
+This table describes the fork changes merged in [PR #1](https://github.com/omd0/oh-my-openagent/pull/1), relative to the upstream base used by this fork.
+
+| Area | Upstream base | myomo |
+| --- | --- | --- |
+| Source | `code-yeongyu/oh-my-openagent` | `omd0/oh-my-openagent` |
+| Installation | Upstream installer or published `omo-ai` package | Build and install from this repository |
+| Side-panel session controls | Existing side-panel implementation | `/side-panel off` closes the current session's panel, including pending activation; `/side-panel` reopens it |
+| Renderer switching | Depends on host renderer support | Hosts with the renderer-mode API switch to the fullscreen column and restore the previous mode on close |
+| Older hosts | Host-dependent panel layout | Retains the widget fallback when the renderer-mode API is unavailable |
+| Core workflow | OmO agents, memory, skills, and model orchestration | Inherits the same core workflow |
+
+The package currently pins Senpi `2026.11.5-1`, which lacks the renderer-mode API. Automatic switching requires a compatible host; the separate host patch is not included in this repository's release. Fullscreen startup remains available on older hosts.
+
+## New side panel
+
+![myomo side panel showing session information and context usage beside the terminal conversation](./.github/assets/myomo-side-panel.png)
+
+QA capture of the actual TUI on the patched Senpi `2026.11.9-2` host, using a mock provider without a model request. The right column shows session information and context usage. This capture demonstrates the compatible-host layout; the source installation above retains the older host's widget fallback.
+
+Run `/side-panel` to open the panel and `/side-panel off` to close it for the current session. The panel can also show delegated agents, DAG runs, goals, tool activity, changed files, and memory as those become available.
 
 ## Why OmO
 
