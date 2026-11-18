@@ -1,5 +1,6 @@
 import { sanitizeTerminalText } from "./format/sanitize"
 import { formatCount } from "./format/counts"
+import { DIFF_VIEWER_ROW_CAP } from "./constants"
 import { readGitDiff } from "./git/diff"
 import type { PanelGitEntry } from "./git/parse"
 import type { PanelExec } from "./git/read"
@@ -38,9 +39,10 @@ export interface PanelCommandDeps {
 }
 
 function fileOptionLabel(file: PanelGitEntry): string {
-  const delta = file.added === undefined && file.removed === undefined
-    ? ""
-    : `  +${formatCount(file.added ?? 0)}/-${formatCount(file.removed ?? 0)}`
+  const delta =
+    file.added === undefined && file.removed === undefined
+      ? ""
+      : `  +${formatCount(file.added ?? 0)}/-${formatCount(file.removed ?? 0)}`
   // Bound the source before sanitizing; the host's select list folds newlines only.
   return sanitizeTerminalText(`${file.xy} ${file.path}${delta}`.slice(0, SELECTOR_LABEL_MAX_CHARS))
 }
@@ -88,5 +90,14 @@ export async function openFileDiff(
   file: PanelGitEntry,
 ): Promise<void> {
   const rows = await readGitDiff(exec, status.root, file)
-  await openPanelViewer(ui, `${file.path.slice(0, VIEWER_TITLE_MAX_CHARS)}  (diff, read-only)`, rows)
+  // A generated or vendored file can diff to hundreds of thousands of lines; the viewer is for reading.
+  const shown =
+    rows.length > DIFF_VIEWER_ROW_CAP
+      ? [
+          ...rows.slice(0, DIFF_VIEWER_ROW_CAP),
+          { text: `... ${rows.length - DIFF_VIEWER_ROW_CAP} more lines`, color: "dim" as const },
+        ]
+      : rows
+  const title = sanitizeTerminalText(file.path).slice(0, VIEWER_TITLE_MAX_CHARS)
+  await openPanelViewer(ui, `${title}  (diff, read-only)`, shown)
 }

@@ -1,5 +1,12 @@
 import type { ChildModelRegistry, ParentState } from "@oh-my-opencode/senpi-task"
-import { RELEASE_RUN_FENCE, type EnginePauseState, type EngineRunHoldContext, type RunRef } from "../../../../senpi-task/src/pause/ports"
+import {
+  RELEASE_RUN_FENCE,
+  type EnginePauseState,
+  type EngineRunHoldContext,
+  type RunRef,
+} from "../../../../senpi-task/src/pause/ports"
+
+import type { DialogUi } from "../../extension/types"
 
 // Structural slice of senpi's ExtensionContext the task runtime reads. ExtensionContext satisfies it;
 // tests pass a tiny fake. `ui` lives on ExtensionContext (event/command contexts), NOT ExtensionAPI,
@@ -36,15 +43,18 @@ export type WidgetFactory = (tui: unknown, theme: import("@code-yeongyu/senpi").
   dispose?(): void
 }
 
-export interface CapturedUi {
+export interface CapturedUi extends DialogUi {
   notify(message: string, type?: "info" | "warning" | "error"): void
   setStatus(key: string, text: string | undefined): void
   // senpi#2471: absent on engines before it, so the footer simply shows no subagent figure there.
   setSubagentCost?(costUsd: number | undefined): void
   // Rows, or a themed component factory (the host hands it the active theme), as the side panel and the
   // upstream agent widget use. A factory is only needed where the rows are colour-coded.
-  setWidget(key: string, content: string[] | WidgetFactory | undefined, options?: { placement?: "belowEditor" | "aboveEditor" }): void
-  select(title: string, options: string[], opts?: { signal?: unknown; timeout?: number }): Promise<string | undefined>
+  setWidget(
+    key: string,
+    content: string[] | WidgetFactory | undefined,
+    options?: { placement?: "belowEditor" | "aboveEditor" },
+  ): void
   // Raw terminal input, interactive mode only. The handler can consume a sequence; returns an unsubscribe.
   onTerminalInput?(handler: (data: string) => { consume?: boolean; data?: string } | undefined): () => void
   // Overlay mount for the upstream watch screens, interactive mode only.
@@ -52,7 +62,6 @@ export interface CapturedUi {
     factory: (tui: import("@earendil-works/pi-tui").TUI, theme: import("@code-yeongyu/senpi").Theme, keybindings: unknown, done: (value?: unknown) => void) => unknown,
     options?: Record<string, unknown>,
   ): Promise<unknown>
-  confirm(title: string, message: string, opts?: { signal?: unknown; timeout?: number }): Promise<boolean>
 }
 
 export type ParentTransition = "compacting" | "session_switching" | "session_shutdown" | undefined

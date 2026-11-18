@@ -29,10 +29,7 @@ import { findGitRoot, readGitBranch } from "./git/repo"
 import { createPanelHostSurface } from "./host-surface"
 import type { PanelAction } from "./links"
 import { openPanelViewer } from "./popups/open"
-import {
-  claimRegularModeNotice,
-  REGULAR_MODE_NOTICE_MESSAGE,
-} from "./regular-mode-notice"
+import { claimRegularModeNotice, REGULAR_MODE_NOTICE_MESSAGE } from "./regular-mode-notice"
 import { buildAgentCardRows } from "./sections/agents"
 import { buildMemoryDetailRows } from "./sections/memory"
 import { dagRowCap, type DagColumnInput } from "./sections/dag"

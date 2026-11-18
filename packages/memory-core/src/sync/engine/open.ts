@@ -23,6 +23,10 @@ export interface SyncSession {
   readonly transport: Transport
   readonly verifier: Verifier
   readonly sealer: Sealer
+  /** The memory space (hex id) the verifier and sealer are bound to. */
+  readonly space: string
+  /** The per-device `local:` space this repository synced before it moved to the default space (#13720). */
+  readonly legacySpace?: string
   readonly freeze?: FreezeSettler
 }
 
@@ -70,7 +74,10 @@ export async function openDeviceSync(options: OpenDeviceSyncOptions): Promise<De
   try {
     await mkdir(options.locksDir, { recursive: true })
     const writer: WriterLock = {
-      withLock: async (fn) => withLock(memoryWriterLockPath(options.locksDir), await createLockRecord("memory sync apply"), fn, { waitTimeoutMs: WRITER_WAIT_MS }),
+      withLock: async (fn) =>
+        withLock(memoryWriterLockPath(options.locksDir), await createLockRecord("memory sync apply"), fn, {
+          waitTimeoutMs: WRITER_WAIT_MS,
+        }),
     }
     const store = createDeviceItemStore({
       stateDir: options.stateDir,

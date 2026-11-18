@@ -38,6 +38,7 @@ import { registerDagCommands } from "./dag-commands"
 import type { DagWatchPort } from "./dag-subagent-service"
 import { registerWatchCommand } from "./watch-command"
 import { createSessionWatchService } from "./watch-service"
+import { createLiveConfigProvider } from "./live-config-provider"
 import { createDagReloadSource } from "./dag-reload-source"
 import { createDagRuntime, type DagRuntime } from "./dag-runtime"
 import { registerDagTool } from "./register-workflow-tool"
@@ -127,14 +128,32 @@ export function createTaskComponent(options: TaskComponentOptions = {}): OmoSenp
         ? configuredRoutingProfile
         : undefined
       const startupRoutingProfile = defaultRoutingProfile ?? loaded.profile
-      const initialRoutingConfig = startupRoutingProfile === undefined
-        ? baseConfig
-        : projectTaskRoutingConfig(baseConfig, loadConfig({ cwd, profile: startupRoutingProfile }).config)
+      const initialProfileConfig =
+        startupRoutingProfile === undefined ? undefined : loadConfig({ cwd, profile: startupRoutingProfile }).config
+      const initialRoutingConfig =
+        initialProfileConfig === undefined ? baseConfig : projectTaskRoutingConfig(baseConfig, initialProfileConfig)
       const loadSkills = options.loadSkills ?? createTaskSkillLoader({ logger: ctx.logger })
+
+      const getLiveBaseOmoConfig = createLiveConfigProvider({
+        cwd,
+        loadConfig,
+        initialResult: loaded,
+        logger: ctx.logger,
+      })
+      let activeRoutingProfile = startupRoutingProfile
+      let activeProfileConfig = initialProfileConfig
+      const getLiveOmoConfig = (): OmoConfig => {
+        const base = getLiveBaseOmoConfig()
+        return activeProfileConfig === undefined ? base : projectTaskRoutingConfig(base, activeProfileConfig)
+      }
 
       const engine = composeTaskEngine({
         pi,
         omoConfig: initialRoutingConfig,
+        // Re-read the user/project chain per plan so mid-session omo.json(c) category edits
+        // reach the planner seam instead of pinning the register-time snapshot forever, while
+        // caching within the plan window and retaining the last good config on diagnostics.
+        getOmoConfig: getLiveOmoConfig,
         cwd,
         loadSkills,
         sharedParentTools: () => ctx.getCapturedTools?.() ?? [],
@@ -195,11 +214,14 @@ export function createTaskComponent(options: TaskComponentOptions = {}): OmoSenp
       )
       registerTeamTools(pi, teamTools)
       registerRemovedTeamWaitHint(pi)
-      let activeRoutingProfile = startupRoutingProfile
       const applyRoutingProfile = (profile: string | undefined): void => {
-        const nextConfig = profile === undefined
-          ? baseConfig
-          : projectTaskRoutingConfig(baseConfig, loadConfig({ cwd, profile }).config)
+        activeRoutingProfile = profile
+        activeProfileConfig = profile === undefined ? undefined : loadConfig({ cwd, profile }).config
+        const liveBaseConfig = getLiveBaseOmoConfig()
+        const nextConfig =
+          activeProfileConfig === undefined
+            ? liveBaseConfig
+            : projectTaskRoutingConfig(liveBaseConfig, activeProfileConfig)
         engine.setRoutingConfig(nextConfig)
         teamTools.updateRouting(nextConfig)
         refreshRoutingTools()
@@ -329,17 +351,20 @@ export function createTaskComponent(options: TaskComponentOptions = {}): OmoSenp
       // Ahead of the recovery chain's session_start, so a revived child's host boots during the reconcile.
       wireHostPrewarm(pi, engine)
 
-      wireDagLifecycle(pi, dagRuntime, () =>
-        wireEventBridge(pi, ctx, engine, statusUi, transitions, {
-          reconcileTeamMailbox: teamTools.reconcileTeamMailbox,
-          leadPollers: teamTools.leadPollers,
-          resumptionChannels,
-          forgetTaskOutputReads,
-          dagReloadSource: createDagReloadSource({
-            manager: dagRuntime.manager,
-            sessionId: () => engine.runtime.sessionId(),
+      wireDagLifecycle(
+        pi,
+        dagRuntime,
+        () =>
+          wireEventBridge(pi, ctx, engine, statusUi, transitions, {
+            reconcileTeamMailbox: teamTools.reconcileTeamMailbox,
+            leadPollers: teamTools.leadPollers,
+            resumptionChannels,
+            forgetTaskOutputReads,
+            dagReloadSource: createDagReloadSource({
+              manager: dagRuntime.manager,
+              sessionId: () => engine.runtime.sessionId(),
+            }),
           }),
-        }),
         (error) => ctx.logger.warn("omo-senpi DAG attach after reconcile failed", { error: String(error) }),
       )
 
@@ -357,7 +382,10 @@ function sessionCwd(pi: SenpiExtensionAPI): string {
   return typeof pi.cwd === "string" && pi.cwd.length > 0 ? pi.cwd : process.cwd()
 }
 
-async function readJobWidgetHost(load: () => Promise<JobWidgetHostApi>, ctx: ComponentContext): Promise<JobWidgetHostApi> {
+async function readJobWidgetHost(
+  load: () => Promise<JobWidgetHostApi>,
+  ctx: ComponentContext,
+): Promise<JobWidgetHostApi> {
   try {
     return await load()
   } catch (error) {
@@ -379,7 +407,11 @@ function wireJobWidgets(
   if (host.setAuthorResolver === undefined && host.sources === undefined) return
   const feed = host.sources === undefined
     ? undefined
-    : createTaskJobWidgetFeed({ sources: host.sources, manager: engine.manager, sessionId: () => engine.runtime.sessionId() })
+    : createTaskJobWidgetFeed({
+        sources: host.sources,
+        manager: engine.manager,
+        sessionId: () => engine.runtime.sessionId(),
+      })
   const stopObserving = feed === undefined ? undefined : engine.onStoreMutation((change) => feed.observe(change))
   pi.on("session_start", () => feed?.sync())
   pi.on("session_shutdown", () => {
@@ -440,13 +472,20 @@ function registerTaskTools(
       manager,
       resolveCallerSessionId,
       deliverLateOutcome: createLateSendOutcomeDeliverer(pi, () => engine.runtime.sessionId()),
-      teamRouting: { service: teamService, from: TEAM_LEAD_SENTINEL, ...(resolveDefaultTeamRunId !== undefined ? { resolveDefaultTeamRunId } : {}) },
+      teamRouting: {
+        service: teamService,
+        from: TEAM_LEAD_SENTINEL,
+        ...(resolveDefaultTeamRunId !== undefined ? { resolveDefaultTeamRunId } : {}),
+      },
     }),
     runs: "brain",
   })
   pi.registerTool({ ...createTaskCancelTool({ manager }), runs: "brain" })
   const output = createTaskOutputTool({
-    manager, stateDir: engine.stateDir, resolveCallerSessionId, notices: engine.host.notices.list,
+    manager,
+    stateDir: engine.stateDir,
+    resolveCallerSessionId,
+    notices: engine.host.notices.list,
   })
   const { forgetSession, ...outputTool } = output
   pi.registerTool({ ...outputTool, runs: "brain" })
@@ -460,7 +499,6 @@ function registerTaskTools(
     },
   }
 }
-
 
 export function wireDagLifecycle(
   pi: SenpiExtensionAPI,
@@ -486,11 +524,15 @@ export function wireDagLifecycle(
   // it, but a turn does, so the snapshot is on the wire before the turn starts and the turn's own DAG
   // tools see recovered runs. `latest` never rejects, and its reconcile probes are time-bounded.
   // A preview pass (prompt-prefix prewarm) starts no turn, so it does not wait.
-  pi.on("before_agent_start", async (payload) => {
-    if (isPreviewPayload(payload)) return undefined
-    await latest
-    return undefined
-  }, { previewSafe: true })
+  pi.on(
+    "before_agent_start",
+    async (payload) => {
+      if (isPreviewPayload(payload)) return undefined
+      await latest
+      return undefined
+    },
+    { previewSafe: true },
+  )
   // A client reattaching to a retained session gets no session_start. An attach still in flight
   // publishes on its own, so this only restates an attached bridge.
   pi.on("session_resumed", () => runtime.resend())
@@ -498,11 +540,7 @@ export function wireDagLifecycle(
   return { lastAttach: () => latest }
 }
 
-function createTeamToolContext(
-  pi: SenpiExtensionAPI,
-  ctx: ComponentContext,
-  engine: TaskEngine,
-): TeamToolContext {
+function createTeamToolContext(pi: SenpiExtensionAPI, ctx: ComponentContext, engine: TaskEngine): TeamToolContext {
   const serviceDeps = {
     manager: engine.manager,
     resolveInheritedExtensions: engine.resolveInheritedExtensions,

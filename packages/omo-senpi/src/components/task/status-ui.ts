@@ -157,9 +157,10 @@ export function createTaskStatusUi(deps: TaskStatusUiDeps): TaskStatusUi {
       return
     }
     const background = records.filter((record) => deps.manager.wasBackground?.(record.task_id) === true)
-    renderUpstreamRows(ui, background, now())
+    const ordinary = background.filter((record) => record.owner?.kind !== "dag")
+    renderUpstreamRows(ui, ordinary, now())
     // Only a live child needs the 250 ms repaint; a parked one renders a still row.
-    if (background.some((record) => !isTerminal(record.status) && !isSuspended(record))) {
+    if (ordinary.some((record) => !isTerminal(record.status) && !isSuspended(record))) {
       scheduleLiveRefresh()
     } else clearLiveRefresh()
   }
@@ -259,12 +260,15 @@ export function createTaskStatusUi(deps: TaskStatusUiDeps): TaskStatusUi {
     }
     for (const taskId of activeBackgroundIds) {
       if (subscriptions.has(taskId)) continue
-      subscriptions.set(taskId, deps.manager.subscribeChild(taskId, (event) => {
-        const activity = activityFromEvent(event)
-        if (activity === undefined) return
-        liveActivity.set(taskId, activity)
-        scheduleSync()
-      }))
+      subscriptions.set(
+        taskId,
+        deps.manager.subscribeChild(taskId, (event) => {
+          const activity = activityFromEvent(event)
+          if (activity === undefined) return
+          liveActivity.set(taskId, activity)
+          scheduleSync()
+        }),
+      )
     }
   }
 
@@ -301,10 +305,11 @@ export function createTaskStatusUi(deps: TaskStatusUiDeps): TaskStatusUi {
 
   return {
     scheduleSync,
-    syncNow: () => containRenderFault(() => {
-      treeCost.ensureSeeded()
-      syncNow()
-    }),
+    syncNow: () =>
+      containRenderFault(() => {
+        treeCost.ensureSeeded()
+        syncNow()
+      }),
     observeRecord: (change) => containRenderFault(() => treeCost.observe(change)),
     dispose,
   }

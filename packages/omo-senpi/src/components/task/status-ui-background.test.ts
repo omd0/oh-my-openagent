@@ -1,6 +1,12 @@
 import { describe, expect, it } from "bun:test"
 
-import { createChildProgress, HOST_TURN_RESUMED_EVENT, type ListedTask, type TaskRecord, type TaskStatus } from "@oh-my-opencode/senpi-task"
+import {
+  createChildProgress,
+  HOST_TURN_RESUMED_EVENT,
+  type ListedTask,
+  type TaskRecord,
+  type TaskStatus,
+} from "@oh-my-opencode/senpi-task"
 
 import { Theme } from "../../senpi-test-runtime"
 import type { CapturedUi, WidgetFactory } from "./runtime-context"
@@ -129,8 +135,13 @@ describe("createTaskStatusUi.background progress", () => {
     // given
     const active = new Map<number, () => void>()
     const timers: StatusUiTimers = {
-      set: (callback) => { active.set(1, callback); return 1 },
-      clear: (handle) => { if (typeof handle === "number") active.delete(handle) },
+      set: (callback) => {
+        active.set(1, callback)
+        return 1
+      },
+      clear: (handle) => {
+        if (typeof handle === "number") active.delete(handle)
+      },
     }
     const member = record({
       task_id: "st_done",
@@ -139,12 +150,17 @@ describe("createTaskStatusUi.background progress", () => {
       status,
     })
     const manager = {
-      list: () => listed([member, record({ task_id: "st_ordinary", task_summary: "ordinary task", status })]),
+      list: () =>
+        listed([member, record({ task_id: "st_ordinary", task_summary: "ordinary task", status })]),
       wasBackground: () => true,
       residentTaskIds: () => [member.task_id, "st_ordinary"],
     }
     const ui = fakeUi()
-    const statusUi = createTaskStatusUi({ manager, runtime: { ui: () => ui, sessionId: () => "session-a", mode: () => "tui" }, timers })
+    const statusUi = createTaskStatusUi({
+      manager,
+      runtime: { ui: () => ui, sessionId: () => "session-a", mode: () => "tui" },
+      timers,
+    })
 
     // when
     statusUi.syncNow()
@@ -182,13 +198,27 @@ describe("createTaskStatusUi.background progress", () => {
     // given one background child that is parked, not running
     const active = new Map<number, () => void>()
     const timers: StatusUiTimers = {
-      set: (callback) => { active.set(1, callback); return 1 },
-      clear: (handle) => { if (typeof handle === "number") active.delete(handle) },
+      set: (callback) => {
+        active.set(1, callback)
+        return 1
+      },
+      clear: (handle) => {
+        if (typeof handle === "number") active.delete(handle)
+      },
     }
-    const parked = record({ task_id: "st_parked", task_summary: "parked child", status: "running", residency_state: "persisted_only" })
+    const parked = record({
+      task_id: "st_parked",
+      task_summary: "parked child",
+      status: "running",
+      residency_state: "persisted_only",
+    })
     const manager = { list: () => listed([parked]), wasBackground: () => true }
     const ui = fakeUi()
-    const statusUi = createTaskStatusUi({ manager, runtime: { ui: () => ui, sessionId: () => "session-a", mode: () => "tui" }, timers })
+    const statusUi = createTaskStatusUi({
+      manager,
+      runtime: { ui: () => ui, sessionId: () => "session-a", mode: () => "tui" },
+      timers,
+    })
 
     // when the widget syncs
     statusUi.syncNow()
@@ -212,7 +242,9 @@ describe("createTaskStatusUi.background progress", () => {
         active.set(handle, callback)
         return handle
       },
-      clear: (handle) => { if (typeof handle === "number") active.delete(handle) },
+      clear: (handle) => {
+        if (typeof handle === "number") active.delete(handle)
+      },
     }
     const task = record({
       task_id: "st_idle",
@@ -271,7 +303,9 @@ describe("createTaskStatusUi.background progress", () => {
         active.set(handle, callback)
         return handle
       },
-      clear: (handle) => { if (typeof handle === "number") active.delete(handle) },
+      clear: (handle) => {
+        if (typeof handle === "number") active.delete(handle)
+      },
     }
     const task = record({ task_id: "st_reattached", name: "c0", status: "running", category: "quick" })
     const listeners = new Map<string, (event: { readonly type: string }) => void>()
@@ -324,7 +358,9 @@ describe("createTaskStatusUi.background progress", () => {
         active.set(handle, callback)
         return handle
       },
-      clear: (handle) => { if (typeof handle === "number") active.delete(handle) },
+      clear: (handle) => {
+        if (typeof handle === "number") active.delete(handle)
+      },
     }
     let task = record({ task_id: "st_finishing", status: "running" })
     const manager: StatusUiManager = {
@@ -360,7 +396,9 @@ describe("createTaskStatusUi.background progress", () => {
         active.set(handle, callback)
         return handle
       },
-      clear: (handle) => { if (typeof handle === "number") active.delete(handle) },
+      clear: (handle) => {
+        if (typeof handle === "number") active.delete(handle)
+      },
     }
     const first = record({
       task_id: "st_first",
@@ -404,7 +442,10 @@ describe("createTaskStatusUi.background progress", () => {
         display: "chatgpt-subscription/gpt-5.6-luna-fast",
       },
     })
-    const listeners = new Map<string, (event: { readonly type: string; readonly toolName?: string; readonly args?: unknown }) => void>()
+    const listeners = new Map<
+      string,
+      (event: { readonly type: string; readonly toolName?: string; readonly args?: unknown }) => void
+    >()
     const manager: StatusUiManager = {
       list: () => listed([first, second]),
       wasBackground: () => true,
@@ -422,6 +463,7 @@ describe("createTaskStatusUi.background progress", () => {
       manager,
       runtime: { ui: () => ui, sessionId: () => "session-a", mode: () => "tui" },
       timers,
+      terminalWidth: () => 220,
       now: () => Date.parse("2026-07-07T00:01:05.000Z"),
     })
 

@@ -1,6 +1,7 @@
 import type { Theme } from "@code-yeongyu/senpi"
+import { excerptRendererText } from "@oh-my-opencode/senpi-task/renderer-text"
 
-import type { DagStatusNode, DagStatusRunSnapshot } from "./dag-status-row-format"
+import { runHeaderRow, type DagStatusNode, type DagStatusRunSnapshot } from "./dag-status-row-format"
 import { threadState } from "./dag-subagent-service"
 import type { LoaderStyle, ThreadView } from "./subagent-ui/types"
 import { renderAgentTree, visibleAgentPaths } from "./subagent-ui/widget"
@@ -60,13 +61,16 @@ export function renderDagInline(
 ): string[] {
   const lines: string[] = []
   for (const run of runs) {
+    const rows = renderAgentTree(dagRunThreads(run, activity.get(run.runId), now), width, theme, {
+      showBrowserHint: false,
+      animate: true,
+      loaderStyle: options.loaderStyle ?? "circle",
+      ...(options.decorate === undefined ? {} : { decorate: options.decorate }),
+    })
     lines.push(
-      ...renderAgentTree(dagRunThreads(run, activity.get(run.runId), now), width, theme, {
-        showBrowserHint: false,
-        animate: true,
-        loaderStyle: options.loaderStyle ?? "circle",
-        ...(options.decorate === undefined ? {} : { decorate: options.decorate }),
-      }),
+      ...rows.slice(0, 1),
+      theme.fg("accent", excerptRendererText(runHeaderRow(run), width)),
+      ...rows.slice(1),
     )
   }
   return lines

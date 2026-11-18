@@ -104,9 +104,7 @@ export async function readGitDiff(exec: PanelExec, root: string, file: PanelGitE
   }
   let result = await exec("git", gitDiffArgs(file), options).catch(() => undefined)
   if (result?.code === 128 && result.stdout === "" && file.xy[0] !== " ") {
-    result = await exec("git", ["diff", "--no-index", "--", "/dev/null", file.path], options).catch(
-      () => undefined,
-    )
+    result = await exec("git", ["diff", "--no-index", "--", "/dev/null", file.path], options).catch(() => undefined)
   }
   if (result === undefined || result.failed === true) return [{ text: "git diff could not be run", color: "error" }]
   if (tooLarge(result)) return TOO_LARGE_ROWS
