@@ -96,6 +96,70 @@ export const SUPPLEMENTAL_MODEL_CAPABILITIES: Record<string, ModelCapabilitiesSn
       output: 128000,
     },
   },
+  // OpenAI model pages (2026-11-18): Astra/Sol reject `none`; all three support text/image input.
+  "gpt-6.2-astra": {
+    id: "gpt-6.2-astra",
+    family: "gpt",
+    reasoning: true,
+    temperature: false,
+    toolCall: true,
+    modalities: {
+      input: ["text", "image"],
+      output: ["text"],
+    },
+    limit: {
+      context: 1050000,
+      input: 922000,
+      output: 128000,
+    },
+  },
+  "gpt-6.2-sol": {
+    id: "gpt-6.2-sol",
+    family: "gpt",
+    reasoning: true,
+    temperature: false,
+    toolCall: true,
+    modalities: {
+      input: ["text", "image"],
+      output: ["text"],
+    },
+    limit: {
+      context: 1050000,
+      input: 922000,
+      output: 128000,
+    },
+  },
+  "gpt-6.2-sol-fast": {
+    id: "gpt-6.2-sol-fast",
+    family: "gpt",
+    reasoning: true,
+    temperature: false,
+    toolCall: true,
+    modalities: {
+      input: ["text", "image"],
+      output: ["text"],
+    },
+    limit: {
+      context: 1050000,
+      input: 922000,
+      output: 128000,
+    },
+  },
+  "gpt-6.1-terra": {
+    id: "gpt-6.1-terra",
+    family: "gpt-mini",
+    reasoning: true,
+    temperature: false,
+    toolCall: true,
+    modalities: {
+      input: ["text", "image"],
+      output: ["text"],
+    },
+    limit: {
+      context: 1050000,
+      output: 128000,
+    },
+  },
   "gpt-6-astra": {
     id: "gpt-6-astra",
     family: "gpt",

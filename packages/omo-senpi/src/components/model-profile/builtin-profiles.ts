@@ -66,10 +66,10 @@ export const RETIRED_MODEL_PROFILE_IDS: ReadonlySet<string> = new Set(["recommen
 const CLAUDE_PROVIDERS = ["anthropic-subscription", "anthropic", "anthropic-api", "github-copilot", "opencode"] as const
 const KIMI_PROVIDERS = ["kimi-coding", "kimi-for-coding", "moonshotai", "opencode-go"] as const
 const GPT_PROVIDERS = ["chatgpt-subscription", "openai", "github-copilot", "opencode"] as const
-// GPT-6.1 Sol and its Fast tier are served only on the two OpenAI lanes (not Copilot or OpenCode Zen),
-// so their rungs list just those; Obsessive · Normal heads with GPT-6 Astra on every GPT provider and
+// The current Sol and its Fast tier are served only on the two OpenAI lanes (not Copilot or OpenCode Zen),
+// so their rungs list just those; Obsessive · Normal heads with the current Astra on every GPT provider and
 // falls back through those two-lane rungs to GPT-5.6 Sol, which keeps the profile on every GPT provider.
-const GPT_6_1_PROVIDERS = ["chatgpt-subscription", "openai"] as const
+const OPENAI_GPT_PROVIDERS = ["chatgpt-subscription", "openai"] as const
 
 // Key order is the order a picker renders. `deep` is deliberately NOT an id: builtin
 // delegation categories already carry that name, and the two axes never compete (a
@@ -110,8 +110,8 @@ export const BUILTIN_MODEL_PROFILES: Readonly<Record<string, BuiltinModelProfile
     caution: "NOT RECOMMENDED FOR WRITING OR EVERYDAY WORK.",
     models: [
       { providers: [...GPT_PROVIDERS], model: LATEST_MODEL_BY_FAMILY.gptAstra, variant: "medium" },
-      { providers: [...GPT_6_1_PROVIDERS], model: LATEST_MODEL_BY_FAMILY.gptSolFast, variant: "medium" },
-      { providers: [...GPT_6_1_PROVIDERS], model: LATEST_MODEL_BY_FAMILY.gptSol, variant: "medium" },
+      { providers: [...OPENAI_GPT_PROVIDERS], model: LATEST_MODEL_BY_FAMILY.gptSolFast, variant: "medium" },
+      { providers: [...OPENAI_GPT_PROVIDERS], model: LATEST_MODEL_BY_FAMILY.gptSol, variant: "medium" },
       { providers: [...GPT_PROVIDERS], model: "gpt-5.6-sol", variant: "medium" },
     ],
   },

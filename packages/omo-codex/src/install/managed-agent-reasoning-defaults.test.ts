@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test"
 import { resolveManagedAgentReasoning } from "./managed-agent-reasoning-defaults"
 
 describe("resolveManagedAgentReasoning", () => {
-  const bundled = { bundledModel: "gpt-6-astra", bundledEffort: "low" }
+  const bundled = { bundledModel: "gpt-6.2-astra", bundledEffort: "low" }
 
   test.each([
     ["explorer", "gpt-5.6-luna", "low", "low"],
@@ -27,7 +27,7 @@ describe("resolveManagedAgentReasoning", () => {
       expect(
         resolveManagedAgentReasoning({
           agentName,
-          bundledModel: "gpt-6-astra",
+          bundledModel: "gpt-6.2-astra",
           bundledEffort: expected,
           preserved: { model, effort },
         }),
@@ -121,7 +121,7 @@ describe("resolveManagedAgentReasoning", () => {
     // when
     const effort = resolveManagedAgentReasoning({
       agentName: "custom-unlisted-agent",
-      bundledModel: "gpt-6-astra",
+      bundledModel: "gpt-6.2-astra",
       bundledEffort: "high",
       preserved: { model: "gpt-5.6-sol", effort: "medium" },
     })
@@ -133,7 +133,7 @@ describe("resolveManagedAgentReasoning", () => {
     // when
     const effort = resolveManagedAgentReasoning({
       agentName: "plan",
-      bundledModel: "gpt-6-astra",
+      bundledModel: "gpt-6.2-astra",
       bundledEffort: "high",
       preserved: { model: "gpt-5.6-sol", effort: "max" },
     })
@@ -145,7 +145,7 @@ describe("resolveManagedAgentReasoning", () => {
     // when
     const effort = resolveManagedAgentReasoning({
       agentName: "lazycodex-worker-medium",
-      bundledModel: "gpt-6-astra",
+      bundledModel: "gpt-6.2-astra",
       bundledEffort: "high",
       preserved: { model: "gpt-5.6-luna", effort: "max" },
     })
@@ -157,7 +157,7 @@ describe("resolveManagedAgentReasoning", () => {
     // when
     const effort = resolveManagedAgentReasoning({
       agentName: "lazycodex-qa-executor",
-      bundledModel: "gpt-6-astra",
+      bundledModel: "gpt-6.2-astra",
       bundledEffort: "high",
       preserved: { model: "gpt-5.6-terra", effort: "medium" },
     })
@@ -169,7 +169,7 @@ describe("resolveManagedAgentReasoning", () => {
     // when
     const effort = resolveManagedAgentReasoning({
       agentName: "lazycodex-gate-reviewer",
-      bundledModel: "gpt-6-astra",
+      bundledModel: "gpt-6.2-astra",
       bundledEffort: "low",
       preserved: { model: "gpt-5.6-sol", effort: "high" },
     })
@@ -181,7 +181,7 @@ describe("resolveManagedAgentReasoning", () => {
     expect(
       resolveManagedAgentReasoning({
         agentName: "lazycodex-worker-high",
-        bundledModel: "gpt-6-astra",
+        bundledModel: "gpt-6.2-astra",
         bundledEffort: "medium",
         preserved: { model: "gpt-5.6-sol", effort: "max" },
       }),
@@ -189,7 +189,7 @@ describe("resolveManagedAgentReasoning", () => {
     expect(
       resolveManagedAgentReasoning({
         agentName: "lazycodex-code-reviewer",
-        bundledModel: "gpt-6-astra",
+        bundledModel: "gpt-6.2-astra",
         bundledEffort: "medium",
         preserved: { model: "gpt-5.6-sol", effort: "xhigh" },
       }),
@@ -197,7 +197,7 @@ describe("resolveManagedAgentReasoning", () => {
     expect(
       resolveManagedAgentReasoning({
         agentName: "lazycodex-clone-fidelity-reviewer",
-        bundledModel: "gpt-6-astra",
+        bundledModel: "gpt-6.2-astra",
         bundledEffort: "high",
         preserved: { model: "gpt-5.6-sol", effort: "xhigh" },
       }),

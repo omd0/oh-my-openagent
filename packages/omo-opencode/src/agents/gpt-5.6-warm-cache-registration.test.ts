@@ -9,7 +9,7 @@ type AgentSources = Parameters<typeof collectPendingBuiltinAgents>[0]["agentSour
 describe("Momus GPT-6 Astra warm-cache registration", () => {
   test("registers Copilot astra ahead of transformed Vercel astra", () => {
     // given
-    const availableModels = new Set(["github-copilot/gpt-6-astra", "vercel/openai/gpt-6-astra"])
+    const availableModels = new Set(["github-copilot/gpt-6.2-astra", "vercel/openai/gpt-6.2-astra"])
 
     // when
     const { pendingAgentConfigs } = collectPendingBuiltinAgents({
@@ -24,7 +24,7 @@ describe("Momus GPT-6 Astra warm-cache registration", () => {
     const config = pendingAgentConfigs.get("momus")
 
     // then
-    expect(config?.model).toBe("github-copilot/gpt-6-astra")
+    expect(config?.model).toBe("github-copilot/gpt-6.2-astra")
     expect(config?.variant).toBe("high")
   })
 })

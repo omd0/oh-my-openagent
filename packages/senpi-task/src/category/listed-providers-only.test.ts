@@ -31,7 +31,7 @@ const OPENROUTER_ONLY = gateway("openrouter", [
   "anthropic/claude-opus-4.6",
   "anthropic/claude-sonnet-5",
   "anthropic/claude-haiku-4.5",
-  "openai/gpt-6-astra",
+  "openai/gpt-6.2-astra",
   "openai/gpt-5.6-sol",
   "openai/gpt-5.6-terra",
   "openai/gpt-6-luna",
@@ -50,7 +50,7 @@ const OPENGATEWAY_ONLY = gateway("opengateway", [
   "anthropic/claude-fable-5-1",
   "anthropic/claude-opus-5-5",
   "anthropic/claude-haiku-4-5",
-  "openai/gpt-6-astra",
+  "openai/gpt-6.2-astra",
   "openai/gpt-5.6-sol",
   "openai/gpt-5.6-terra",
   "moonshotai/kimi-k3",
@@ -167,17 +167,17 @@ describe("builtin chains resolve only on their listed providers (#9146)", () => 
     test("#when a category names it in models[] #then that pin is honored", () => {
       const result = resolveCategory(
         "ultrabrain",
-        { categories: { ultrabrain: { models: ["openrouter/openai/gpt-6-astra"] } } },
+        { categories: { ultrabrain: { models: ["openrouter/openai/gpt-6.2-astra"] } } },
         registry(OPENROUTER_ONLY),
       )
 
       expect(result.kind).toBe("resolved")
       if (result.kind !== "resolved") throw new Error("Expected resolved")
       expect(result.spec.provider).toBe("openrouter")
-      expect(result.spec.modelId).toBe("openai/gpt-6-astra")
+      expect(result.spec.modelId).toBe("openai/gpt-6.2-astra")
       expect(
         resolveAvailableCategoryNames(
-          { categories: { ultrabrain: { models: ["openrouter/openai/gpt-6-astra"] } } },
+          { categories: { ultrabrain: { models: ["openrouter/openai/gpt-6.2-astra"] } } },
           registry(OPENROUTER_ONLY),
         ),
       ).toEqual(["ultrabrain"])

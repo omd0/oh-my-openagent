@@ -47,9 +47,8 @@ export const CATEGORY_MODEL_REQUIREMENTS: Record<string, ModelRequirement> = {
   },
   "deep-low": {
     fallbackChain: [
-      // GPT-6.1 Sol leads at the same medium effort: it matches GPT-6 Sol's price with near-Astra
-      // quality, but only the OpenAI lanes serve it (plain, then the Fast tier). GPT-5.6 Sol stays
-      // behind it so Copilot, OpenCode Zen and a registry without 6.1 still resolve the lane.
+      // The current Sol leads on the OpenAI lanes (plain, then the Fast tier). GPT-5.6 Sol stays
+      // behind it so Copilot, OpenCode Zen and a registry without the current Sol still resolve.
       { providers: ["openai", "chatgpt-subscription"], model: LATEST_MODEL_BY_FAMILY.gptSol, variant: "medium" },
       { providers: ["openai", "chatgpt-subscription"], model: LATEST_MODEL_BY_FAMILY.gptSolFast, variant: "medium" },
       {

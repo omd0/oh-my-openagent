@@ -30,6 +30,8 @@ describe("model family detectors", () => {
     for (const model of [
       "gpt-6-astra",
       "gpt-6-astra-fast",
+      "gpt-6.2-astra",
+      "chatgpt-subscription/gpt-6.2-astra-fast:max",
       "openai/gpt-6-astra",
       "chatgpt-subscription/gpt-6-astra-fast",
       "github-copilot/gpt-6-astra",
@@ -63,6 +65,8 @@ describe("model family detectors", () => {
       "gpt-6-astra/claude-opus-5-5",
       "custom-gpt-6-astra",
       "gpt-6-astra-preview",
+      "gpt-6.2-astra-preview",
+      "gpt-6.2-sol",
       "gpt-6-astra-fastest",
       "gpt-6-astra:unrecognized",
       "gpt-6-astra (unrecognized)",

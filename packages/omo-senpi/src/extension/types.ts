@@ -211,6 +211,15 @@ export interface ComponentLogger {
   error(message: string, details?: unknown): void
 }
 
+/** The host's catalog refresh uses its persisted model cache and provider-specific discovery. */
+export interface ModelCatalogRegistry {
+  refresh(options: {
+    readonly providers: readonly string[]
+    readonly allowNetwork: boolean
+    readonly signal: AbortSignal
+  }): Promise<{ readonly aborted: boolean; readonly errors: ReadonlyMap<string, Error> }>
+}
+
 export interface ComponentContext {
   logger: ComponentLogger
   config: {

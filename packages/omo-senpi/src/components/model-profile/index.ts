@@ -1,6 +1,7 @@
 import { isExcludedModel } from "@oh-my-opencode/omo-config-core"
 
-import type { ComponentContext, OmoSenpiComponent, SenpiExtensionAPI } from "../../extension/types"
+import type { ComponentContext, ModelCatalogRegistry, OmoSenpiComponent, SenpiExtensionAPI } from "../../extension/types"
+import { deferUntilAfterFirstPaint } from "../../extension/startup-deferral"
 import { loadSenpiOmoConfig } from "../config-resolution"
 import { RETIRED_MODEL_PROFILE_IDS } from "./builtin-profiles"
 import { credentialRotationPolicy } from "./credential-policy"
@@ -51,7 +52,7 @@ type SessionModelApi = {
   setSessionThinkingLevel?(level: string): void
 }
 
-type SessionRegistry = ProbeRegistry & {
+type SessionRegistry = ProbeRegistry & Partial<ModelCatalogRegistry> & {
   getAvailable(): readonly unknown[]
   find(provider: string, modelId: string): unknown
   getProviderAuthStatus?(provider: string): unknown
@@ -280,7 +281,31 @@ export function createModelProfileComponent(options: ModelProfileComponentOption
       // instance, which is the conservative reading of "never clobber twice".
       const appliedSessions = new Set<string>()
       const loggedRetiredProfiles = new Set<string>()
+      const shutdown = new AbortController()
+      pi.on("session_shutdown", () => shutdown.abort())
       pi.on("session_start", async (payload, eventCtx) => {
+        const registry = extractRegistry(eventCtx)
+        const refresh = registry?.refresh?.bind(registry)
+        const mode = extractMode(eventCtx)
+        if (
+          refresh !== undefined &&
+          pi.sessionKind !== "worker" &&
+          (mode === "tui" || mode === "rpc") &&
+          [process.env.OMO_OFFLINE, process.env.SENPI_OFFLINE, process.env.PI_OFFLINE].every((value) => value === undefined)
+        ) {
+          deferUntilAfterFirstPaint(ctx, "model catalog refresh", async () => {
+            if (shutdown.signal.aborted || registry === undefined) return
+            const providers = [...new Set(availableSelectors(registry).map(providerOf))]
+            if (providers.length === 0) return
+            const result = await refresh({
+              providers,
+              allowNetwork: true,
+              signal: AbortSignal.any([shutdown.signal, AbortSignal.timeout(15_000)]),
+            })
+            if (result.errors.size > 0)
+              ctx.logger.warn("omo-senpi: model catalogs could not refresh; keeping cached models")
+          })
+        }
         if (isTuiSession(eventCtx) || !isFreshSessionWithoutExplicitModel(payload)) return
         const sessionId = extractSessionId(eventCtx) ?? ""
         if (appliedSessions.has(sessionId)) return
@@ -292,7 +317,6 @@ export function createModelProfileComponent(options: ModelProfileComponentOption
         const explicit = named !== undefined && isRetiredProfile(named, config.model_profiles) ? undefined : named
         if (named !== undefined && explicit === undefined) logRetiredProfileOnce(ctx, loggedRetiredProfiles, named)
 
-        const registry = extractRegistry(eventCtx)
         if (registry === undefined) {
           ctx.logger.warn("omo-senpi: model profile skipped - no model registry on the session context")
           return
@@ -303,7 +327,6 @@ export function createModelProfileComponent(options: ModelProfileComponentOption
           return
         }
 
-        const mode = extractMode(eventCtx)
         const probes = newProbeState()
         const resolveFor = (profileId: string) =>
           resolveWithRequestAuth(

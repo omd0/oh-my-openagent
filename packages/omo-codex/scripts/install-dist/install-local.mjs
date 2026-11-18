@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// omo-codex-install:d34cab3c318701582d435cb4cd0239f574d4c3184c12341fee0c7349092864e2:48a1bf92eecad2ad82869078a1af6956b2214dbed32cc7f72f0b1d4f05f0f5ad
+// omo-codex-install:27235847060587b2f63fc71b69c1479868199399e3989611d5367fb6df16e826:e0a63b6554196482b4095c5bcb291881c4e8cb45b81d35ffd5b18be03330c763
 var __esm = (fn, res, err) => () => {
   if (fn)
     try {
@@ -13156,9 +13156,9 @@ var LATEST_MODEL_BY_FAMILY = {
   claudeSonnet: "claude-sonnet-5-5",
   claudeHaiku: "claude-haiku-5-5",
   claudeFable: "claude-fable-5-2",
-  gptAstra: "gpt-6-astra",
-  gptSol: "gpt-6.1-sol",
-  gptSolFast: "gpt-6.1-sol-fast",
+  gptAstra: "gpt-6.2-astra",
+  gptSol: "gpt-6.2-sol",
+  gptSolFast: "gpt-6.2-sol-fast",
   gptLunaFast: "gpt-6-luna-fast",
   glm: "glm-5.3",
   glmFlash: "glm-5.3-flash",
@@ -13171,7 +13171,7 @@ var LATEST_MODEL_BY_FAMILY = {
 var FALLBACK_CODEX_MODEL_CATALOG = {
   current: {
     model: LATEST_MODEL_BY_FAMILY.gptAstra,
-    modelContextWindow: 600000,
+    modelContextWindow: 1050000,
     modelReasoningEffort: "high",
     planModeReasoningEffort: "xhigh"
   },
@@ -13192,6 +13192,12 @@ var FALLBACK_CODEX_MODEL_CATALOG = {
     {
       model: "gpt-5.6-sol",
       modelContextWindow: 650000,
+      modelReasoningEffort: "high",
+      planModeReasoningEffort: "xhigh"
+    },
+    {
+      model: "gpt-6-astra",
+      modelContextWindow: 600000,
       modelReasoningEffort: "high",
       planModeReasoningEffort: "xhigh"
     }

@@ -90,7 +90,7 @@ describe("unspecified-low chain order", () => {
     // given: the reported setup (#10306) with Sonnet 5.5 unavailable, so neither mimo nor grok can resolve
     const models: readonly FakeModel[] = [
       { provider: "zai", id: "glm-5.3" },
-      { provider: "chatgpt-subscription", id: "gpt-6.1-sol" },
+      { provider: "chatgpt-subscription", id: "gpt-6.2-sol" },
       { provider: "chatgpt-subscription", id: "gpt-5.6-sol" },
       { provider: "anthropic-subscription", id: "claude-sonnet-5" },
     ]

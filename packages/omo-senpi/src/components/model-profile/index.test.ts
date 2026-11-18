@@ -28,11 +28,11 @@ const KIMI: FakeModel = { provider: "moonshotai", id: "kimi-k3.1-pro" }
 const GLM: FakeModel = { provider: "zai", id: "glm-5.3" }
 const SOL: FakeModel = { provider: "github-copilot", id: "gpt-6-sol" }
 const SOL_56_COPILOT: FakeModel = { provider: "github-copilot", id: "gpt-5.6-sol" }
-const SOL_61: FakeModel = { provider: "chatgpt-subscription", id: "gpt-6.1-sol" }
-const SOL_61_FAST: FakeModel = { provider: "chatgpt-subscription", id: "gpt-6.1-sol-fast" }
+const SOL_61: FakeModel = { provider: "chatgpt-subscription", id: "gpt-6.2-sol" }
+const SOL_61_FAST: FakeModel = { provider: "chatgpt-subscription", id: "gpt-6.2-sol-fast" }
 const SOL_FAST: FakeModel = { provider: "chatgpt-subscription", id: "gpt-6-sol-fast" }
-const ASTRA: FakeModel = { provider: "chatgpt-subscription", id: "gpt-6-astra" }
-const API_ASTRA: FakeModel = { provider: "openai", id: "gpt-6-astra" }
+const ASTRA: FakeModel = { provider: "chatgpt-subscription", id: "gpt-6.2-astra" }
+const API_ASTRA: FakeModel = { provider: "openai", id: "gpt-6.2-astra" }
 const UNRELATED: FakeModel = { provider: "example", id: "nothing-in-any-chain" }
 const SUBSCRIPTION_OPUS: FakeModel = { provider: "anthropic-subscription", id: "claude-opus-5-5" }
 const GATEWAY_OPUS: FakeModel = { provider: "opengateway", id: "anthropic/claude-opus-5-5" }
@@ -290,7 +290,7 @@ describe("createModelProfileComponent", () => {
     expect(pi.sessionModels).toEqual([SOL_61])
     expect(pi.sessionThinkingLevels).toEqual(["medium"])
     expect(recordedOutcome(pi)).toMatchObject({
-      details: { profile: "geeky-normal", model: "chatgpt-subscription/gpt-6.1-sol", reasoning: "medium" },
+      details: { profile: "geeky-normal", model: "chatgpt-subscription/gpt-6.2-sol", reasoning: "medium" },
     })
   })
 
@@ -390,7 +390,7 @@ describe("createModelProfileComponent", () => {
     expect(appliedContent(pi)).toContain("anthropic/claude-fable-5-1 xhigh")
   })
 
-  test("#given geeky-normal with GPT-6 Astra beside the Sol tiers #when the session starts #then gpt-6-astra medium is applied", async () => {
+  test("#given geeky-normal with GPT-6 Astra beside the Sol tiers #when the session starts #then gpt-6.2-astra medium is applied", async () => {
     const { pi, start } = harness({ model_profile: "geeky-normal" }, [
       ASTRA,
       SOL_61,
@@ -403,28 +403,28 @@ describe("createModelProfileComponent", () => {
 
     expect(pi.sessionModels).toEqual([ASTRA])
     expect(pi.sessionThinkingLevels).toEqual(["medium"])
-    expect(appliedContent(pi)).toContain("chatgpt-subscription/gpt-6-astra medium")
+    expect(appliedContent(pi)).toContain("chatgpt-subscription/gpt-6.2-astra medium")
     expect(appliedContent(pi)).toContain("**NOT RECOMMENDED FOR WRITING OR EVERYDAY WORK.**")
   })
 
-  test("#given geeky-normal without GPT-6 Astra, with GPT-6.1 Sol Fast and GPT-6.1 Sol connected #when the session starts #then gpt-6.1-sol-fast medium is applied", async () => {
+  test("#given geeky-normal without GPT-6 Astra, with GPT-6.1 Sol Fast and GPT-6.1 Sol connected #when the session starts #then gpt-6.2-sol-fast medium is applied", async () => {
     const { pi, start } = harness({ model_profile: "geeky-normal" }, [SOL_61, SOL_61_FAST, SOL_56_COPILOT, UNRELATED])
 
     await start(STARTUP)
 
     expect(pi.sessionModels).toEqual([SOL_61_FAST])
     expect(pi.sessionThinkingLevels).toEqual(["medium"])
-    expect(appliedContent(pi)).toContain("chatgpt-subscription/gpt-6.1-sol-fast medium")
+    expect(appliedContent(pi)).toContain("chatgpt-subscription/gpt-6.2-sol-fast medium")
   })
 
-  test("#given geeky-normal with neither GPT-6 Astra nor the GPT-6.1 Sol Fast tier #when the session starts #then plain gpt-6.1-sol medium is applied", async () => {
+  test("#given geeky-normal with neither GPT-6 Astra nor the GPT-6.1 Sol Fast tier #when the session starts #then plain gpt-6.2-sol medium is applied", async () => {
     const { pi, start } = harness({ model_profile: "geeky-normal" }, [SOL_56_COPILOT, SOL_61, UNRELATED])
 
     await start(STARTUP)
 
     expect(pi.sessionModels).toEqual([SOL_61])
     expect(pi.sessionThinkingLevels).toEqual(["medium"])
-    expect(appliedContent(pi)).toContain("chatgpt-subscription/gpt-6.1-sol medium")
+    expect(appliedContent(pi)).toContain("chatgpt-subscription/gpt-6.2-sol medium")
   })
 
   test("#given geeky-normal with only Copilot GPT-5.6 Sol, no Astra or 6.1 Sol #when the session starts #then gpt-5.6-sol medium is applied", async () => {
@@ -444,7 +444,7 @@ describe("createModelProfileComponent", () => {
 
     expect(pi.sessionModels).toEqual([ASTRA])
     expect(pi.sessionThinkingLevels).toEqual(["high"])
-    expect(appliedContent(pi)).toContain("chatgpt-subscription/gpt-6-astra high")
+    expect(appliedContent(pi)).toContain("chatgpt-subscription/gpt-6.2-astra high")
   })
 
   test("#given a literal provider/model #when the session starts #then that pin is applied for the session", async () => {
@@ -771,7 +771,7 @@ describe("createModelProfileComponent", () => {
     },
     {
       kind: "a transient refresh failure on the model probe",
-      custom: { targets: ["chatgpt-subscription/gpt-6-astra"], throws: refreshUnavailable },
+      custom: { targets: ["chatgpt-subscription/gpt-6.2-astra"], throws: refreshUnavailable },
       applied: ASTRA,
       authFailed: undefined,
     },
@@ -779,28 +779,28 @@ describe("createModelProfileComponent", () => {
       kind: "a refused refresh",
       custom: { targets: ["chatgpt-subscription"], throws: refreshRejected },
       applied: API_ASTRA,
-      authFailed: [{ provider: "chatgpt-subscription", model: "gpt-6-astra", reason: "refresh" }],
+      authFailed: [{ provider: "chatgpt-subscription", model: "gpt-6.2-astra", reason: "refresh" }],
     },
     {
       // The provider stays eligible, but the model-scope check still runs: a model whose own header
       // configuration fails would fail the first turn, so only that candidate is skipped.
       kind: "a transient refresh failure on the provider probe and a failing model header",
       custom: { targets: ["chatgpt-subscription"], throws: refreshUnavailable },
-      broken: ["chatgpt-subscription/gpt-6-astra"],
+      broken: ["chatgpt-subscription/gpt-6.2-astra"],
       applied: API_ASTRA,
-      authFailed: [{ provider: "chatgpt-subscription", model: "gpt-6-astra", reason: "request" }],
+      authFailed: [{ provider: "chatgpt-subscription", model: "gpt-6.2-astra", reason: "request" }],
     },
     {
       // The model probe re-runs the credential resolution after a transient provider probe; a
       // credentials-class failure there is provider-scope, not this model's request configuration.
       kind: "a transient refresh failure on the provider probe and a credentials failure on the model probe",
       custom: {
-        targets: ["chatgpt-subscription", "chatgpt-subscription/gpt-6-astra"],
+        targets: ["chatgpt-subscription", "chatgpt-subscription/gpt-6.2-astra"],
         throws: refreshUnavailable,
         modelThrows: credentialsFailed,
       },
       applied: API_ASTRA,
-      authFailed: [{ provider: "chatgpt-subscription", model: "gpt-6-astra", reason: "credentials" }],
+      authFailed: [{ provider: "chatgpt-subscription", model: "gpt-6.2-astra", reason: "credentials" }],
     },
   ])(
     "#given geeky-normal with the subscription and the OpenAI API lane and $kind #when the session starts #then the expected lane serves GPT-6 Astra",
@@ -821,10 +821,10 @@ describe("createModelProfileComponent", () => {
   // unresolved: a model probe that resolves the credential itself means the retry already succeeded.
   test.each([
     { probe: "provider probe only (the model probe's refresh succeeds)", targets: ["chatgpt-subscription"], lines: 0 },
-    { probe: "model probe", targets: ["chatgpt-subscription/gpt-6-astra"], lines: 1 },
+    { probe: "model probe", targets: ["chatgpt-subscription/gpt-6.2-astra"], lines: 1 },
     {
       probe: "provider and model probes",
-      targets: ["chatgpt-subscription", "chatgpt-subscription/gpt-6-astra"],
+      targets: ["chatgpt-subscription", "chatgpt-subscription/gpt-6.2-astra"],
       lines: 1,
     },
   ])(
@@ -837,7 +837,7 @@ describe("createModelProfileComponent", () => {
 
       // The diagnosable fingerprint is the contract (candidate + error class/code + transport code),
       // not the sentence around it; the raw message must not leak.
-      const kept = logs.filter((line) => line.startsWith("warn:") && line.includes("chatgpt-subscription/gpt-6-astra"))
+      const kept = logs.filter((line) => line.startsWith("warn:") && line.includes("chatgpt-subscription/gpt-6.2-astra"))
       expect(kept).toHaveLength(lines)
       for (const line of kept) {
         expect(line).toContain("OAuthRefreshUnavailableError/oauth")
@@ -971,9 +971,10 @@ describe("createModelProfileComponent", () => {
 
     await pi.dispatch("model_select", { model: KIMI }, {})
     await pi.dispatch("agent_end", {}, {})
+    await pi.dispatch("session_shutdown", {}, {})
 
     expect(pi.sessionModels).toEqual([])
-    expect(pi.handlers.map(({ event }) => event)).toEqual(["session_start"])
+    expect(pi.handlers.map(({ event }) => event)).toEqual(["session_shutdown", "session_start"])
     void start
   })
 })

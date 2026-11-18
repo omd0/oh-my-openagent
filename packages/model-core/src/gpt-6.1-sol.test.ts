@@ -44,22 +44,22 @@ describe("GPT-6.1 Sol capabilities", () => {
   })
 })
 
-describe("deep-low on GPT-6.1 Sol", () => {
-  test("resolves gpt-6.1-sol at medium when the registry serves both 6.1 Sol and 5.6 Sol", () => {
-    expect(deepLow(["chatgpt-subscription/gpt-6.1-sol", "chatgpt-subscription/gpt-5.6-sol"])).toMatchObject({
-      model: "chatgpt-subscription/gpt-6.1-sol",
+describe("deep-low on GPT-6.2 Sol", () => {
+  test("resolves gpt-6.2-sol at medium when the registry serves both 6.2 Sol and 5.6 Sol", () => {
+    expect(deepLow(["chatgpt-subscription/gpt-6.2-sol", "chatgpt-subscription/gpt-5.6-sol"])).toMatchObject({
+      model: "chatgpt-subscription/gpt-6.2-sol",
       variant: "medium",
     })
   })
 
-  test("falls to the 6.1 Fast tier before leaving the 6.1 family", () => {
-    expect(deepLow(["openai/gpt-6.1-sol-fast", "openai/gpt-5.6-sol"])).toMatchObject({
-      model: "openai/gpt-6.1-sol-fast",
+  test("falls to the 6.2 Fast tier before leaving the 6.2 family", () => {
+    expect(deepLow(["openai/gpt-6.2-sol-fast", "openai/gpt-5.6-sol"])).toMatchObject({
+      model: "openai/gpt-6.2-sol-fast",
       variant: "medium",
     })
   })
 
-  test("still resolves gpt-5.6-sol at medium on a registry without 6.1 Sol", () => {
+  test("still resolves gpt-5.6-sol at medium on a registry without 6.2 Sol", () => {
     expect(deepLow(["github-copilot/gpt-5.6-sol"])).toMatchObject({
       model: "github-copilot/gpt-5.6-sol",
       variant: "medium",

@@ -608,7 +608,7 @@ describe("createTaskChildPlanner plan variant", () => {
 
   test("#given plan-reviewer resolves a variant-bearing chain entry #when planned #then the applied variant matches the resolved model", () => {
     // given
-    const planner = createTaskChildPlanner({}, BUILTIN_AGENTS, () => registry([model("openai", "gpt-6-astra")]))
+    const planner = createTaskChildPlanner({}, BUILTIN_AGENTS, () => registry([model("openai", "gpt-6.2-astra")]))
 
     // when
     const result = planner({
@@ -620,7 +620,7 @@ describe("createTaskChildPlanner plan variant", () => {
 
     // then
     const resolved = expectResolved(result)
-    expect(resolved.plan.model).toBe("openai/gpt-6-astra")
+    expect(resolved.plan.model).toBe("openai/gpt-6.2-astra")
     expect(resolved.plan.variant).toBe("xhigh")
   })
 })
@@ -652,7 +652,7 @@ describe("createTaskChildPlanner reviewer category routing", () => {
   test("#given a registry serving deep-high and unspecified-high #when the gate reviewer is planned #then the deep-high model wins and unspecified-high extends the runtime chain", () => {
     // given
     const planner = createTaskChildPlanner({}, BUILTIN_AGENTS, () =>
-      registry([model("openai", "gpt-6-astra"), model("anthropic", "claude-opus-5-5")]),
+      registry([model("openai", "gpt-6.2-astra"), model("anthropic", "claude-opus-5-5")]),
     )
 
     // when
@@ -665,7 +665,7 @@ describe("createTaskChildPlanner reviewer category routing", () => {
 
     // then
     const resolved = expectResolved(result)
-    expect(resolved.plan.model).toBe("openai/gpt-6-astra")
+    expect(resolved.plan.model).toBe("openai/gpt-6.2-astra")
     expect(resolved.plan.variant).toBe("high")
     expect(resolved.plan.fallback_models?.map((record) => record.display)).toContain("anthropic/claude-opus-5-5")
     expect(resolved.plan.instructions).toBe(BUILTIN_AGENTS["omo-native-gate-reviewer"]?.prompt)
