@@ -122,6 +122,7 @@ describe("openai lane policy", () => {
 
       // then
       expect(result.spec.provider).toBe("chatgpt-subscription")
+      expect(result.spec.modelId).toBe("gpt-6.2-astra")
       expect(result.spec.requested_model?.display).toBe("chatgpt-subscription/gpt-6.2-astra")
     })
   })

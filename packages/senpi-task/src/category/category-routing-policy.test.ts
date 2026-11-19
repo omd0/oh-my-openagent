@@ -55,6 +55,11 @@ describe("Senpi category routing policy", () => {
         variant: "medium",
       },
       {
+        providers: ["chatgpt-subscription", "openai"],
+        model: "gpt-6.1-sol",
+        variant: "medium",
+      },
+      {
         providers: ["chatgpt-subscription", "openai", "github-copilot", "opencode"],
         model: "gpt-5.6-sol",
         variant: "medium",

@@ -66,8 +66,10 @@ describe("CATEGORY_FALLBACK_CHAINS", () => {
       ],
       ultrabrain: [
         { providers: ["chatgpt-subscription", "openai"], model: "gpt-6.2-astra", variant: "max" },
-        { providers: ["github-copilot"], model: "gpt-6.2-astra", variant: "max" },
+        { providers: ["chatgpt-subscription", "openai"], model: "gpt-6-astra", variant: "max" },
+        { providers: ["github-copilot"], model: "gpt-6-astra", variant: "max" },
         { providers: ["chatgpt-subscription", "openai", "opencode"], model: "gpt-6.2-astra", variant: "max" },
+        { providers: ["chatgpt-subscription", "openai", "opencode"], model: "gpt-6-astra", variant: "max" },
         { providers: ["chatgpt-subscription", "openai"], model: "gpt-5.6-sol", variant: "max" },
         { providers: ["github-copilot"], model: "gpt-5.6-sol", variant: "max" },
         { providers: ["chatgpt-subscription", "openai", "opencode"], model: "gpt-5.6-sol", variant: "max" },
@@ -75,6 +77,8 @@ describe("CATEGORY_FALLBACK_CHAINS", () => {
       "deep-low": [
         { providers: ["chatgpt-subscription", "openai"], model: "gpt-6.2-sol", variant: "medium" },
         { providers: ["chatgpt-subscription", "openai"], model: "gpt-6.2-sol-fast", variant: "medium" },
+        { providers: ["chatgpt-subscription", "openai"], model: "gpt-6.1-sol", variant: "medium" },
+        { providers: ["chatgpt-subscription", "openai"], model: "gpt-6.1-sol-fast", variant: "medium" },
         {
           providers: ["chatgpt-subscription", "openai", "github-copilot", "opencode"],
           model: "gpt-5.6-sol",
@@ -83,9 +87,10 @@ describe("CATEGORY_FALLBACK_CHAINS", () => {
         { providers: ["chatgpt-subscription", "openai"], model: "gpt-5.6-sol-fast", variant: "medium" },
       ],
       "deep-high": [
+        { providers: ["chatgpt-subscription", "openai", "opencode"], model: "gpt-6.2-astra", variant: "high" },
         {
           providers: ["chatgpt-subscription", "openai", "github-copilot", "opencode"],
-          model: "gpt-6.2-astra",
+          model: "gpt-6-astra",
           variant: "high",
         },
       ],
@@ -140,6 +145,7 @@ describe("CATEGORY_FALLBACK_CHAINS", () => {
         { providers: ["xai", "github-copilot", "opencode-go"], model: "grok-4.7", variant: "xhigh" },
         { providers: ["zai", "zai-coding-cn", "opencode-go"], model: "glm-5.3", variant: "high" },
         { providers: ["chatgpt-subscription", "openai"], model: "gpt-6.2-sol", variant: "medium" },
+        { providers: ["chatgpt-subscription", "openai"], model: "gpt-6.1-sol", variant: "medium" },
         {
           providers: ["chatgpt-subscription", "openai", "github-copilot", "opencode"],
           model: "gpt-5.6-sol",

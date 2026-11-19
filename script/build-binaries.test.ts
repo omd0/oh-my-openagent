@@ -240,6 +240,7 @@ describe("build-binaries", () => {
       // then
       expect(platformPackageNames.length).toBeGreaterThan(0)
       for (const { packageName, manifest } of platformPackageJsons) {
+        expect(JSON.parse(manifest).type, `${packageName} must declare its ESM launcher format`).toBe("module")
         expect(manifest).toContain('"files"')
         expect(manifest).toContain('"bin"')
         expect(manifest, `${packageName} must not expose a public package.json bin`).not.toContain('"bin": {')

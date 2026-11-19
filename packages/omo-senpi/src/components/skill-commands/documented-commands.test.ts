@@ -3,7 +3,12 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import { dirname, join, relative } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 
+import { OmoSidePanelSettingsSchema } from "@oh-my-opencode/omo-config-core"
+
 import { createOmoSenpiComponents } from "../../extension/component-list"
+import type { ComponentContext } from "../../extension/types"
+import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
+import { createSidePanelComponent } from "../side-panel"
 import { readBundledSkillNames } from "./bare-skill-command"
 
 // Every slash command omo tells a Native user to type must dispatch (#9042): a bundled skill
@@ -57,7 +62,18 @@ function engineCommandNames(): Set<string> {
 
 function omoCommandNames(): Set<string> {
   const sources = walkFiles(join(packageRoot, "src"), (path) => path.endsWith(".ts") && !path.endsWith(".test.ts"))
-  return new Set(sources.flatMap((path) => matchesOf(/registerCommand\("([a-z-]+)"/g, readFileSync(path, "utf8"))))
+  const sourceCommands = sources.flatMap((path) =>
+    matchesOf(/registerCommand\("([a-z-]+)"/g, readFileSync(path, "utf8")),
+  )
+  const pi = new FakeExtensionAPI()
+  const ctx: ComponentContext = {
+    logger: { info() {}, warn() {}, error() {} },
+    config: { getFlag: (name) => pi.getFlag(name) },
+  }
+  createSidePanelComponent({
+    loadSettings: () => OmoSidePanelSettingsSchema.parse({ enabled: false }),
+  }).register(pi, ctx)
+  return new Set([...sourceCommands, ...pi.commands.map((command) => command.name)])
 }
 
 function bundledSkillNames(): Set<string> {

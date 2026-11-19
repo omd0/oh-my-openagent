@@ -174,12 +174,12 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
     })
   })
 
-  test("momus leads with native gpt-6.2-astra xhigh before the Copilot and opencode Astra rungs", () => {
+  test("momus leads with native gpt-6.2-astra xhigh, then gpt-6-astra xhigh, before the Copilot and opencode Astra rungs", () => {
     // given
     const momus = AGENT_MODEL_REQUIREMENTS["momus"]
 
     // when
-    const [primary, copilot, astraHighFallback, opusFallback] = momus.fallbackChain
+    const [primary, previousAstra, copilot, astraHighFallback, previousAstraHigh, opusFallback] = momus.fallbackChain
 
     // then
     expect(momus.fallbackChain.length).toBeGreaterThan(1)
@@ -188,14 +188,24 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
       model: "gpt-6.2-astra",
       variant: "xhigh",
     })
+    expect(previousAstra).toEqual({
+      providers: ["openai", "chatgpt-subscription"],
+      model: "gpt-6-astra",
+      variant: "xhigh",
+    })
     expect(copilot).toEqual({
       providers: ["github-copilot"],
-      model: "gpt-6.2-astra",
+      model: "gpt-6-astra",
       variant: "high",
     })
     expect(astraHighFallback).toEqual({
       providers: ["openai", "chatgpt-subscription", "opencode"],
       model: "gpt-6.2-astra",
+      variant: "high",
+    })
+    expect(previousAstraHigh).toEqual({
+      providers: ["openai", "chatgpt-subscription", "opencode"],
+      model: "gpt-6-astra",
       variant: "high",
     })
     expect(opusFallback).toEqual({
