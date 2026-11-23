@@ -1,95 +1,73 @@
 # isolation-core
 
-Harness-neutral filesystem isolation PAL with patch and branch merge-back.
-Task-runner integration is supplied by callers.
+## OVERVIEW
+Harness-neutral filesystem isolation PAL with patch and branch merge-back; callers supply task-runner integration.
 
-Provenance: ported from oh-my-pi `crates/pi-iso` + `task/isolation-*`, MIT.
-Candidate ordering, unavailable-only fallback and retention follow that upstream.
-The owner protocol adds process-instance identity, daemon session ownership and
-atomic publication. No Rust/napi crate or `.node` sidecar is required.
-ProjFS is excluded: its driver-callback provider API requires a native callback
-host, not a Bun-callable clone operation.
+Score: 10; distinct domain: backend publication, ownership, retention, and merge safety.
+Ported from oh-my-pi `crates/pi-iso` + `task/isolation-*` (MIT); candidate ordering,
+unavailable-only fallback, and retention follow upstream. No Rust/napi or `.node` sidecar.
 
-## Contract
+## WHERE TO LOOK
+| Task | Location | Contract |
+|------|----------|----------|
+| Public API | `src/index.ts`, `package.json` | Source TS exports; no package build step |
+| Backend lifecycle | `src/backend.ts`, `src/ensure.ts` | Probe, claim, publish, cleanup, retain |
+| Device selection | `src/base-dir.ts` | Same-device selection and deterministic I/O seam |
+| Owner recovery | `src/owner.ts`, `src/sweep.ts` | Identity and daemon-session probes |
+| Merge facade | `src/merge/index.ts` | Patches, branch replay, artifact summary |
+| Platform proof | `src/backends/fs-integration.test.ts` | Real filesystem gates |
 
-- Backends write only inside the supplied context base directory. `start` targets
-  its `m` child; `stop` must be safe after a partially failed start.
-- `IsolationUnavailableError` permits fallback. Other errors propagate. A failed
-  teardown preserves the tree rather than recursively removing an active mount.
-- `chooseBaseDir(repoRoot, homeDir, id)` selects a same-device location, using a
-  mkdir/remove probe for a volume root. Its optional I/O seam is for deterministic
-  device tests. A home fallback on another device excludes tree-cloning backends.
-- `ensureIsolation` claims a unique `.creating-<pid>` sibling before starting,
-  then publishes through the backend's optional `relocate(fromBase, toBase)` hook,
-  or rename for non-mounted backends. Retention uses the same hook. Existing published or in-flight directories are not
-  overwritten; use stale sweeping to reclaim dead attempts.
-- Ownership is checked before age. Foreign, retained, live and unknown owners
-  are never automatically deleted. Creating/malformed markers get a ten-minute
-  grace period. A live creating owner survives regardless of age.
-- Process identity reuses memory-core's lazily loaded native functions without
-  its subprocess fallback. Node returns null and uses PID-only liveness.
-- `sweepStaleIsolations(roots, { backends, probe })` stops the recorded backend
-  before removal. Without a matching backend implementation it reports a skip;
-  without a daemon probe it keeps host-session children as unknown.
-- `retainIsolation(handle, reason)` transfers the tree to a retained path and
-  invalidates the old handle paths. Manual removal requires stopping its recorded
-  backend at `<retainedPath>/m` before recursively removing the retained directory.
+## CONVENTIONS
+- Backends write only inside context `baseDir`; `start` targets `m`, and `stop`
+  must tolerate a partially failed start.
+- `chooseBaseDir(repoRoot, homeDir, id)` probes volume roots with mkdir/remove;
+  a home fallback on another device excludes tree-cloning backends.
+- Publication claims `.creating-<pid>` exclusively, then calls optional backend
+  `relocate(fromBase, toBase)` or rename; retention uses the same relocation hook.
+- Ownership precedes age: creating/malformed markers receive ten minutes' grace;
+  a live creating owner survives regardless of age.
+- Process identity uses memory-core's lazy native functions without subprocess
+  fallback; Node returns null and relies on PID liveness.
+- Sweeps stop the recorded backend before removal; missing backend means skip,
+  and absent daemon probes leave host-session children unknown.
+- `retainIsolation(handle, reason)` changes paths and invalidates the old handle.
+- Merge artifacts include root/nested patches and a summary before application;
+  `apply: false` preserves artifacts without mutating the parent. Callers own teardown.
+- Patch application is atomic per repository: root failure leaves nested repos
+  untouched; nested failure after root success is partial, with separate nested commits.
+- Branch replay preserves child commits on clean baselines and filters inherited WIP;
+  `IsolationCommitReplayError` identifies the commit/retained branch; facade returns `branch-merge-failed`.
+- Both merge modes use memory-core's identity-bearing lock in Git's common directory,
+  including linked worktrees; branch mode restores stashed WIP with `--index`.
+- `applyDeltaPatch` takes `{ id, artifactsDir }`; `commitToBranch` returns
+  `{ branchName, baseSha, nestedPatches }` for `mergeTaskBranch`.
+- Successful start records ISO `started_at`; old `{ backend }` markers remain readable.
+  ZFS also records dataset/snapshot identity; overlay records its lower path.
+- FFI walks and rcopy account bytes during traversal: 10% headroom, 2 GiB default,
+  no separate prewalk. Node reflink uses argv-only `cp -a --reflink=always`.
 
-- `mergeIsolatedChanges` writes root/nested patches and an isolation summary before
-  merging. `apply: false` retains artifacts without mutating the parent. Callers
-  own teardown; on artifact-write failure keep the handle and call
-  `retainIsolation(handle, reason)` rather than cleaning it up.
-- Patch apply is atomic per repository and never automatically uses `--3way`.
-  Root failure leaves nested repositories untouched; nested failure after root
-  success is reported as partial. Nested changes are committed separately.
-- Branch replay preserves child commits on clean baselines and filters inherited
-  WIP on dirty baselines. Unresolvable replay throws `IsolationCommitReplayError`
-  naming the commit and retained branch (the facade reports branch-merge-failed).
-  It does not fall back to committing the user's overlapping WIP.
-- Both modes serialize through memory-core's identity-bearing lock in Git's
-  common directory, including linked-worktree parents. Branch merges stash WIP
-  and restore with `--index`; failed pops preserve the stash and report warnings.
-- Low-level `applyDeltaPatch` takes `{ id, artifactsDir }`; `commitToBranch`
-  returns `{ branchName, baseSha, nestedPatches }` for `mergeTaskBranch`.
+## ANTI-PATTERNS
+- Only `IsolationUnavailableError` allows fallback; propagate operational failures.
+- Never recursively remove an active mount after failed teardown, overwrite published
+  or in-flight directories, or automatically delete foreign/retained/live/unknown owners.
+- Before manually removing retention, stop its recorded backend at `<retainedPath>/m`.
+- On artifact-write failure retain the handle/tree; do not clean it up.
+- Never automatically use `--3way`, commit overlapping user WIP as replay fallback,
+  discard a failed-pop stash, or turn reflink fallback into silent plain copy.
+- ProjFS stays excluded: driver callbacks require a native host, not clone-call FFI.
 
-## Verification
-
-Run focused files with `bun test packages/isolation-core/src/<name>.test.ts`.
-The package suite is `bun test packages/isolation-core`; typecheck uses
+## COMMANDS
+`bun test packages/isolation-core` (or a focused `src/<name>.test.ts`);
 `tsgo --noEmit -p packages/isolation-core/tsconfig.json`.
-Tests use fake native/CLI boundaries against actual directories, plus injected
-device/liveness probes. `started_at` is an ISO timestamp recorded after successful
-start; old `{ backend }` markers remain readable by the sweeper. ZFS markers also
-record dataset/snapshot identity, and overlay markers retain the lower path.
-
-The Linux filesystem workflow creates real loopback btrfs and (when the kernel
-module loads) ZFS, and exercises publication, COW and teardown. Required check:
-`Isolation Linux filesystems / linux-fs` for isolation-core and isolated-child PRs.
-Branch protection is not managed by this package; the PR must request that check.
-Missing filesystem environment variables produce explicit skip reasons locally.
-The workflow also mutation-tests EOPNOTSUPP rejection on the runner's ext4 /tmp.
-Reflink's Node-hosted fallback uses argv-only `cp -a --reflink=always`, never a
-silent plain copy. FFI walks and rcopy plain copies account bytes during traversal,
-reserve 10% headroom, and default to a 2 GiB ceiling (no separate prewalk).
-
-## ReFS manual verification (D2)
-
-Hosted Windows runners do not provide ReFS. The default is native-contract tests
-only; do not describe those tests as a live ReFS proof. On a disposable, already
-provisioned ReFS volume (for example `R:`), from the repository root in PowerShell:
-
-```powershell
-fsutil fsinfo volumeinfo R:
-$env:ISOLATION_TEST_REFS_ROOT = 'R:\isolation-tests'
-New-Item -ItemType Directory -Force $env:ISOLATION_TEST_REFS_ROOT
-bun test packages/isolation-core/src/backends/fs-integration.test.ts -t ReFS
-Remove-Item Env:ISOLATION_TEST_REFS_ROOT
-```
-
-The test checks publication, aligned extents, unaligned tails, tiny/empty files,
-source immutability, and teardown. Native calls use long-path prefixes, allocate
-the destination to cluster-rounded EOF, clone its aligned prefix and copy only
-the remaining tail, then retain the original logical file size. No volume is
-formatted by the test. Save the test output with the Windows build and volume
-cluster size when recording a live validation. ProjFS remains intentionally
-excluded because its callbacks require a native host, not merely callable FFI.
+Tests use real directories with fake native/CLI boundaries and injected device/liveness probes.
+Required PR check: `Isolation Linux filesystems / linux-fs`; request it explicitly
+for isolation-core/isolated-child changes. It covers loopback btrfs, available ZFS,
+publication/COW/teardown, and ext4 EOPNOTSUPP mutation; absent local gates are explicit skips.
+Hosted Windows runners provide native-contract tests, never live ReFS proof.
+For live ReFS use a disposable, pre-provisioned volume: `fsutil fsinfo volumeinfo R:`;
+set `$env:ISOLATION_TEST_REFS_ROOT = 'R:\isolation-tests'`, create that directory,
+run `bun test packages/isolation-core/src/backends/fs-integration.test.ts -t ReFS`,
+then `Remove-Item Env:ISOLATION_TEST_REFS_ROOT`. No volume is formatted.
+The test checks publication, aligned extents, tails, tiny/empty files, immutability,
+and teardown; save output, Windows build, and cluster size. Native calls use long-path
+prefixes, cluster-rounded allocation, aligned-prefix clone plus tail copy, and original logical size.

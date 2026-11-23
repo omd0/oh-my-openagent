@@ -1,36 +1,41 @@
-# delegate-core — Delegate Model Selection + Retry Guidance (Core)
-
-**Generated:** 2026-08-24 / f3642fcda
+# delegate-core - Delegate Selection and Retry Guidance
 
 ## OVERVIEW
+Harness-neutral model selection and task-invocation repair hints, with injected dependencies and no I/O.
 
-Two harness-neutral primitives for the `task`/delegate tool: (1) resolve which model a category/agent delegation should run on, with a multi-step fallback chain; (2) detect common `task()` invocation errors and build corrective retry guidance. Purely functional — zero state, zero IO, all deps injected. Package: `@oh-my-opencode/delegate-core`.
+Score: 5; existing guidance retained for a distinct shared selection-policy domain.
+The six source files expose their public API through `src/index.ts`.
 
-## PUBLIC API (`src/index.ts` barrel)
+## WHERE TO LOOK
+| Task | Location | Notes |
+|------|----------|-------|
+| Resolve a delegation model | `src/model-selection.ts` | Input, result, dependency types and fallback policy |
+| Detect invocation errors | `src/retry-patterns.ts` | Nine ordered patterns, gated by error markers |
+| Build a corrective hint | `src/retry-guidance.ts` | Options and an example invocation |
+| Check resolution behavior | `src/model-selection.test.ts` | Provider, cache, user choice, and variant cases |
+| Check error recognition | `src/retry-patterns.test.ts` | Task error signatures |
+| Change the public boundary | `src/index.ts`, `package.json` | Source ESM exports; private workspace package |
 
-| Module | Key exports |
-|--------|-------------|
-| `model-selection.ts` | `resolveModelForDelegateTask(input, deps)`; types `DelegateFallbackEntry`, `DelegateModelResolutionInput/Result/Deps` |
-| `retry-patterns.ts` | `detectDelegateTaskError(output)`, `DELEGATE_TASK_ERROR_PATTERNS` (9 entries) |
-| `retry-guidance.ts` | `buildRetryGuidance(errorInfo)` — fix hint + available options + example call |
+## CONVENTIONS
+- Resolution order: user override, cold-cache skip, category default, user fallbacks, built-in chain, system default, undefined.
+- An unreachable user override may promote the first reachable user fallback.
+- Cold caches defer with `{ skipped: true }`; an explicit user override precedes that check.
+- User-configured category defaults bypass built-in availability validation.
+- Explicit `-high` choices must retain their identity rather than fuzzy-downgrade.
+- A matched fallback carries its variant and fallback-entry metadata into the result.
+- Provider-specific model transformation runs before exact fallback matching.
+- `detectDelegateTaskError` requires `[ERROR]` or `Invalid arguments` before matching a pattern.
+- Model parsing and matching come from `@oh-my-opencode/model-core`.
+- OpenCode delegate/retry adapters and the Senpi task engine consume this policy; the Codex installer does not.
 
-### Resolution order (`resolveModelForDelegateTask`)
+## ANTI-PATTERNS
+- Never route a built-in fallback rung through a provider it does not list, including a gateway republishing the model.
+- `allowUnlistedProviders` is an opt-in for user-selected rungs, not a built-in default.
+- Cross-provider matching must skip providers reserved by a later dedicated rung for the same model.
+- Never turn an uninitialized provider cache into an arbitrary model choice.
+- Keep host caches, transport calls, and mutable session state outside these primitives.
 
-1. user model override (promote first reachable `userFallbackModels` if unreachable) → 2. **skip sentinel** if caches cold (`{skipped: true}`) → 3. category default model (user-set returned as-is, else fuzzy-matched) → 4. user `fallback_models` array → 5. hardcoded `fallbackChain` (per-entry providers, exact-then-fuzzy) → 6. system default → 7. `undefined`.
-
-### Recognized error patterns (9)
-
-`missing_run_in_background`, `missing_load_skills`, `mutual_exclusion`, `missing_category_or_agent`, `unknown_category`, `empty_agent`, `unknown_agent`, `primary_agent`, `unknown_skills`.
-
-## DEPENDENCIES & CONSUMERS
-
-- **Depends on:** `@oh-my-opencode/model-core` (`fuzzyMatchModel`, `normalizeModel`, `parseModelString`, `parseVariantFromModelID`, `transformModelForProvider`).
-- **Consumed by** (no Codex consumer): `packages/omo-opencode` (`src/tools/delegate-task/model-selection.ts` wires cache + logger deps; `hooks/delegate-task-retry/{patterns,guidance}.ts` re-export retry behavior) and `packages/senpi-task` (category resolver, category/agent fallback chains, `manager/types.ts`, `model-chain.ts` import `resolveModelForDelegateTask` + `DelegateFallbackEntry`). `packages/omo-senpi` declares the dep and uses the fallback-entry type in tests only.
-
-## NOTES
-
-- **Cold-cache `skipped` sentinel:** when `availableModels` AND `connectedProviders` caches are both empty, resolution defers — caller waits for the model cache rather than picking wrong.
-- **`-high` models** are matched on their base model exactly, never fuzzy-downgraded to a non-high variant.
-- **Variant propagation:** a matched `DelegateFallbackEntry`'s variant flows through to the result.
-- **Fallback-chain provider shaping:** each entry's model passes through `transformModelForProvider` before exact matching, so provider-prefixed IDs (e.g. Vercel `openai/gpt-5.6-sol`) resolve on the owning entry. A rung resolves only on the providers it lists (#9146): a gateway re-publishing the model (`openrouter/anthropic/claude-opus-5.5`) or any other unlisted provider is never selected. `allowUnlistedProviders: true` opts back into cross-provider fuzzy matching for callers whose rungs are the user's own selection (the omo-senpi `model_profile` matcher); that step skips providers holding a later dedicated rung for the same model, so the earlier variant is kept.
-- Parent: [`packages/AGENTS.md`](../AGENTS.md).
+## COMMANDS
+Run inside this package:
+`bun test src/*.test.ts`
+`tsgo --noEmit -p tsconfig.json`

@@ -1,135 +1,63 @@
-# src/ - Plugin Source
-
-**Generated:** 2026-08-07 / 51ab1e5b6
-
-## STOP. THIS IS THE OPENCODE PLUGIN. QA IS MANDATORY. EVERY SINGLE TIME YOU CHANGE ANYTHING HERE.
-
-> **EVERYTHING UNDER THIS `src/` IS WIRED DIRECTLY INTO OPENCODE. IF YOU EDIT A HOOK, A TOOL, AN AGENT, A FEATURE, A CONFIG SCHEMA, AN MCP, A CLI COMMAND, A PLUGIN HANDLER, OR ANYTHING ELSE IN HERE, YOU MUST QA IT AGAINST REAL OPENCODE. ALWAYS. EVERY SINGLE TIME. NO EXCEPTIONS.**
-
-**"It typechecks" is NOT QA. "`bun test` is green" is NOT QA.** YOU MUST DRIVE REAL OPENCODE AND RECORD THE EVIDENCE TO DISK. NO EVIDENCE == NO QA == NO COMMIT == NO PUSH.
-
-**ALWAYS RUN THE `opencode-qa` SKILL** (`.agents/skills/opencode-qa/`) to map the EXPECTED IMPACT and the FULL CHANGE SCOPE of your edit:
-
-1. **MAP THE BLAST RADIUS** with the skill router (CLI / server + SSE hook proof / TUI smoke / DB inspection), BEFORE and AFTER your change.
-2. **ISOLATE EVERYTHING.** Any QA that SPAWNS opencode MUST run in an isolated XDG sandbox (`XDG_DATA_HOME` / `XDG_CONFIG_HOME` / `XDG_STATE_HOME` / `XDG_CACHE_HOME` pointed at temp dirs). **NEVER pollute the real `~/.local/share/opencode/opencode.db`.** PROVE it: `SELECT count(*) FROM session` unchanged before vs after.
-3. **PROVE THE HOOK / EVENT FIRED.** Changed a lifecycle hook? Prove the matching event hit the wire (`scripts/sse-hook-probe.sh --event <name>`). Changed a tool? Drive it via `opencode run --format json` and assert on the structured events.
-4. **USE tmux** for TUI smoke (`scripts/tui-smoke.sh`) and interactive driving; assert REAL behavior via `opencode run` or the server API + SSE, not the TUI pane.
-
-**RECORD THE EVIDENCE UNDER `.omo/evidence/<YYYYMMDD>-<short-slug>/`** (one organized subfolder per change; the directory is gitignored, so the files stay local and the PR body carries the summary): WHY THERE IS NO REGRESSION (before/after + isolation proof + exact commands and output) and PROOF THAT EVERY INTENDED CHANGE LANDED (new behavior observed on real opencode). See the root [`AGENTS.md`](../../../AGENTS.md) "STOP. QA IS MANDATORY" section for the full mandate, which also covers the Codex side.
-
-**ALWAYS. EVERY TIME. NO EXCEPTIONS.**
+# omo-opencode src - Plugin Source
 
 ## OVERVIEW
+OpenCode-facing composition of agent factories, tools, hooks, configuration, CLI, integrations, and shared-Core shims.
 
-Entry `index.ts` orchestrates a staged initialization across the directories below. Cross-cutting adapter helpers live in `shared/`; barrel `index.ts` files establish module boundaries. Several former implementation directories now act partly as OpenCode-facing shims over extracted Core packages.
+**Score:** 13; distinct domain: plugin initialization and the host-facing source boundary.
+Measured: 2,849 files, 20 immediate subdirectories, 97% code, index.ts boundary, more than 30 functions and 10 exports; reference centrality unmeasured.
 
-## KEY FILES
+## WHERE TO LOOK
 
-| File | Purpose |
-|------|---------|
-| `index.ts` | Plugin entry; default-exports `pluginModule: PluginModule` with `{ id, server }` |
-| `plugin-config.ts` | JSONC parse, multi-level merge (user + walked project), Zod v4 validation, migration |
-| `plugin-state.ts` | `createModelCacheState()`: model resolution cache shared across handlers |
-| `plugin-interface.ts` | 12 OpenCode hook handlers wired into `Hooks` (a further 2, `experimental.session.compacting` + `experimental.compaction.autocontinue`, are wired in `src/testing/create-plugin-module.ts`, for 14 total) |
-| `create-managers.ts` | TmuxSessionManager, BackgroundManager, SkillMcpManager, ConfigHandler |
-| `create-tools.ts` | SkillContext + AvailableCategories + ToolRegistry composition |
-| `create-hooks.ts` | 5-tier composition: `createCoreHooks() + createContinuationHooks() + createSkillHooks()` |
-| `create-runtime-tmux-config.ts` | `isTmuxIntegrationEnabled()` + `createRuntimeTmuxConfig()` |
+| Task | Location | Notes |
+|------|----------|-------|
+| Plugin entry | index.ts | createPluginModule server plus opencode-v2 setup |
+| Full startup and disposal | testing/create-plugin-module.ts | Config, migration, auth, telemetry, runtime, managers/tools/hooks |
+| OpenCode hook interface | plugin-interface.ts | Host hook contract; extra compaction handlers wired at startup |
+| Factory composition | create-{managers,tools,hooks}.ts | Managers, registry, hook tiers |
+| Model cache | plugin-state.ts | Cache shared by handlers |
+| Configuration | plugin-config.ts, plugin-config/, config/ | Walked config chain, validation, protected user view |
+| Handler config phases | plugin-handlers/ | Agent/provider/tool configuration pipeline |
+| Hook tiers | plugin/hooks/ | Session, tool guard, transform, continuation, skill composition |
+| Core-backed adapter helpers | shared/ | Existing utilities and stable shims |
+| Lifecycle and background work | hooks/, features/background-agent/ | Fallback, recovery, parent wake, concurrency |
+| Agents and tools | agents/, tools/ | Persona factories and native registry surfaces |
+| CLI and migration | cli/, config-migration/ | Install/run/doctor and reusable migration plans |
+| MCP and external integrations | mcp/, openclaw/ | Built-in MCPs and bidirectional service bridge |
+| OpenCode v2 | opencode-v2/ | Separate setup/server adaptation |
 
-## INITIALIZATION (7 STEPS)
+## STRUCTURE
 
-```
-serverPlugin(input, options)
-  1. installAgentSortShim()        # patches Array.prototype.{toSorted,sort} for canonical agent ordering
-  2. initConfigContext()           # detects opencode-vs-openagent config layout
-  3. detectExternalSkillPlugin()   # warn if conflicting plugin loaded
-  4. injectServerAuthIntoClient()  # wire auth headers into shared SDK client
-  5. loadPluginConfig()            # walk project + user JSONC → Zod safeParse → migrate
-  6a. initializeOpenClaw()         # if openclaw config present (start reply-listener daemon)
-  6b. checkTeamModeDependencies()  # if team_mode.enabled (verify git, tmux, ensure ~/.omo/teams/)
-  7. createManagers/Tools/Hooks/PluginInterface
-```
+- Primary adapter domains: agents, hooks, tools, features, shared, cli, config, plugin, plugin-handlers, plugin-config, config-migration, opencode-v2, openclaw, mcp, testing.
+- Supporting directories: __tests__, generated, help, locales, types. Consult deeper guidance before editing their domain.
 
-## CONFIG LOADING (Phase pipeline)
+## CONVENTIONS
 
-```
-loadPluginConfig(directory, ctx)
-  1. User: ~/.omo/omo.jsonc
-  2. Walked configs: <pwd up to $HOME>/.omo/omo.jsonc
-  3. mergeConfigs(user, walked)
-     - agents/categories/claude_code: deepMerge (recursive, prototype-pollution safe)
-     - disabled_*: Set union
-     - mcp_env_allowlist: user-only (security)
-     - playwright_mcp_args: user-only (security)
-     - others: override replaces
-  4. Zod safeParse → defaults for omitted fields
-  5. Legacy configuration is migrated once at startup into the unified OMO chain
-```
+- Plugin API wiring is concentrated in plugin-interface.ts and startup, with separate v2 adaptation; do not treat the older seven-step startup sketch as exhaustive.
+- createHooks composes session/tool-guard/transform tiers plus continuation and skill tiers; enabled slots depend on team and monitor configuration, so inspect composers instead of copying totals.
+- Within a module use relative imports; across modules use barrels. Path aliases are forbidden.
+- Reach for shared/ before adding helper logic elsewhere; duplicate utilities are review defects.
+- Config merges deep agent/category/claude_code records and unions disabled lists; mcp_env_allowlist and playwright_mcp_args remain user-only security controls.
+- Model fallback applies armed fallback state through chat.message; runtime-fallback is a separate reactive hook surface. Do not describe model-fallback as a chat.params-only handler.
 
-## HOOK COMPOSITION (5-tier)
+## REQUIRED REAL-OPENCODE QA
 
-Counts verified from each composer's return object. Numbers in brackets show counts when `team_mode.enabled`.
+- Every edit here to hooks, tools, agents, features, schemas, MCPs, CLI, handlers, or other host-connected behavior requires real OpenCode QA. ALWAYS. EVERY TIME. NO EXCEPTIONS.
+- Typecheck and green bun test are not QA. Drive real OpenCode and record evidence; no evidence means no QA, no commit, no push.
+- Always use the opencode-qa skill at .agents/skills/opencode-qa/ to map expected impact and the full change scope before and after the edit.
+- Route proof through CLI, server/SSE, TUI smoke, or DB inspection as the skill requires; use structured events to assert tool behavior and prove the matching lifecycle hook/event fired.
+- Every OpenCode spawn uses isolated XDG_DATA_HOME, XDG_CONFIG_HOME, XDG_STATE_HOME, and XDG_CACHE_HOME temp directories.
+- Never pollute the real ~/.local/share/opencode/opencode.db; prove its SELECT count(*) FROM session is unchanged before and after QA.
+- Preserve the skill's tmux TUI-smoke and interactive-driving procedure; assert real behavior through opencode run or server API plus SSE rather than pane text.
+- Evidence belongs under .omo/evidence/<YYYYMMDD>-<short-slug>/, one gitignored folder per change; record before/after, exact commands/output, isolation proof, no regression, and the intended behavior observed. PR bodies carry the summary.
 
-```
-createHooks()
-  ├─→ createCoreHooks()
-  │   ├─ createSessionHooks()     # 23: preemptiveCompaction,
-  │   │                             sessionNotification, thinkMode, modelFallback,
-  │   │                             anthropicContextWindowLimitRecovery, autoUpdateChecker,
-  │   │                             astGrepSgProvision,
-  │   │                             agentUsageReminder, nonInteractiveEnv, interactiveBashSession,
-  │   │                             goal, editErrorRecovery, delegateTaskRetry, ulwExecute,
-  │   │                             prometheusMdOnly, sisyphusJuniorNotepad, noSisyphusGpt,
-  │   │                             noHephaestusNonGpt, hephaestusAgentsMdInjector,
-  │   │                             questionLabelTruncator, taskResumeInfo,
-  │   │                             runtimeFallback, legacyPluginToast
-  │   ├─ createToolGuardHooks()   # 17 [+1 with team-mode]: commentChecker, toolOutputTruncator,
-  │   │                             directoryAgentsInjector, directoryReadmeInjector,
-  │   │                             emptyTaskResponseDetector, rulesInjector, tasksTodowriteDisabler,
-  │   │                             writeExistingFileGuard, bashFileReadGuard, hashlineReadEnhancer,
-  │   │                             jsonErrorRecovery, readImageResizer, todoDescriptionOverride,
-  │   │                             webfetchRedirectGuard, fsyncSkipWarning,
-  │   │                             notepadWriteGuard, planFormatValidator [+ teamToolGating]
-  │   └─ createTransformHooks()   # 4 [+2 team-mode, +1 monitor-gated]: claudeCodeHooks,
-  │                                  keywordDetector, contextInjectorMessagesTransform,
-  │                                  toolPairValidator [+ teamModeStatusInjector,
-  │                                  teamMailboxInjector, monitorStatusInjector (monitor.enabled)]
-  ├─→ createContinuationHooks()   # 7: stopContinuationGuard, compactionContextInjector,
-  │                                  compactionTodoPreserver, todoContinuationEnforcer (boulder),
-  │                                  unstableAgentBabysitter, backgroundNotificationHook, atlasHook
-  └─→ createSkillHooks()          # 2: categorySkillReminder, autoSlashCommand
+## ANTI-PATTERNS
 
-  Direct event handlers (src/plugin/event.ts, when team_mode.enabled): +4
-    team-idle-wake-hint, team-lead-orphan-handler,
-    team-member-error-handler, team-member-status-handler
-```
+- Never bypass protected user-only config settings with project overrides.
+- Never duplicate extracted Core implementations inside an adapter shim.
+- Never certify a lifecycle change from unit assertions without the real event-wire proof above.
 
-Total: 54 base, 61 with team-mode, 62 with monitor enabled. Authoritative per-tier breakdown: [`hooks/AGENTS.md`](hooks/AGENTS.md). Each tier produces an object whose values are `(input, output) => void` handlers; the matching OpenCode handler invokes them in registration order via `safeHook()` wrappers.
+## COMMANDS
 
-## SUBSYSTEM INVENTORY
-
-| Subdir | Purpose | Has AGENTS.md |
-|--------|---------|---------------|
-| `agents/` | 11 agent factories + dynamic prompt builder | yes (+ atlas, hephaestus, prometheus, sisyphus, sisyphus-junior, builtin-agents) |
-| `hooks/` | 54-62 lifecycle hooks across 62 dirs | yes (+ atlas, anthropic-context-window-limit-recovery, auto-update-checker, claude-code-hooks, comment-checker, compaction-context-injector, keyword-detector, ralph-loop, rules-injector, runtime-fallback, todo-continuation-enforcer) |
-| `tools/` | 14 native tool dirs (+1 shared utilities dir); LSP + AST-grep moved to built-in MCPs | yes (+ background-task, call-omo-agent, delegate-task, hashline-edit, look-at, skill) |
-| `features/` | 24 feature modules (including `btw-side`, `opengateway-provider`; some now shimming `team-core`, `tmux-core`, `skills-loader-core`, `mcp-client-core`, and `claude-code-compat-core`) | yes (+ 16 sub-AGENTS.md including team-mode, background-agent, btw-side, claude-code-*) |
-| `shared/` | Cross-cutting adapter utilities plus shims over extracted Core packages, barrel-exported | yes |
-| `cli/` | Commander.js CLI: install, run, doctor, mcp-oauth, boulder | yes (+ config-manager, doctor, run) |
-| `plugin/` | 12 OpenCode hook handlers + hook composition | yes |
-| `config/` | Zod v4 schema files | yes |
-| `plugin-handlers/` | 6-phase config loading pipeline | yes |
-| `openclaw/` | Bidirectional Discord/Telegram/HTTP integration | yes |
-| `__tests__/` | Plugin-level integration tests + perf fixtures | yes |
-| `mcp/` | 4 built-in MCPs (3 remote + local stdio lsp) | yes |
-| `testing/` | Test utilities + `create-plugin-module.ts` | yes |
-| `config-migration/` | Legacy config discovery + transform plans (consumed by senpi config-startup + codex startup) | yes |
-| `types/` | Ambient `.d.ts` declarations (markdown modules) | no |
-| `help/` | CLI help schema definitions (acp, doctor, sandbox, status) | no |
-| `locales/` | i18n strings (en, zh): toasts + model-fallback labels | no |
-
-## NOTES
-
-- `plugin-interface.ts` is the **only** layer that talks to OpenCode's `Plugin` API. Every other file goes through it.
-- Reach for `shared/` before adding helpers anywhere else; duplicate utilities WILL be flagged in review.
-- Path aliases are forbidden. Use relative imports within a module, barrel imports across modules.
+- bun test packages/omo-opencode/src
+- tsgo --noEmit -p packages/omo-opencode/tsconfig.json
+- bun run build (root); use the opencode-qa router for live proof.

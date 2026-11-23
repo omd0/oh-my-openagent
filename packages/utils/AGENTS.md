@@ -1,36 +1,50 @@
-# utils — Shared Utilities (Core)
+# utils - Shared Runtime and Utility Core
 
-**Generated:** 2026-08-24 / f3642fcda
+**Generated:** 2026-11-17. **Score:** 10; distinct domain: shared runtime portability and internal prompt coordination.
 
 ## OVERVIEW
 
-Harness-neutral pure-TypeScript core package (`@oh-my-opencode/utils`). Consumed by both adapters (`packages/omo-opencode`, `packages/omo-codex`) and the other Core packages. Barrel-exports runtime shims, config tooling, file utilities, prompt gating, git parsing, and migration maps.
+Harness-neutral TypeScript utilities, config helpers, process ownership, logging, and Bun/Node compatibility surfaces.
 
-## CATEGORY MAP
+## WHERE TO LOOK
 
-| Group | Key Files | Role |
-|-------|-----------|------|
-| **Deep Merge** | `deep-merge.ts` | `deepMerge()` — recursive, prototype-pollution safe (`__proto__`/`constructor`/`prototype` filtered), max depth 50 |
-| **Frontmatter** | `frontmatter.ts` | `parseFrontmatter()` — default YAML (`js-yaml` JSON_SCHEMA) + rule-mode parser with multiline glob arrays |
-| **File Utils** | `file-utils.ts`, `atomic-write.ts`, `xdg-data-dir.ts` | Symlink resolution, atomic writes with tolerant fsync, XDG data dir with tmp fallback |
-| **Runtime Shims** | `runtime/spawn.ts`, `runtime/which.ts`, `runtime/file.ts` | `spawn()` / `spawnSync()` — prefers `Bun.spawn`, falls back to Node `child_process`; unified `SpawnedProcess` interface |
-| **Prompt Gate** | `prompt-async-gate.ts` + `prompt-async-gate/*.ts` | `dispatchInternalPrompt()` — reservation + queue + semantic dedupe + live-route fallback; the mandated gate for all internal `session.prompt` calls |
-| **Git Worktree** | `git-worktree/*.ts` | Porcelain status parser, diff stat collection, `formatFileChanges()` |
-| **Migration** | `migration.ts`, `migration/*.ts` | Agent-name, hook-name, model-version, agent-category migration maps; `migrateConfigFile()` |
-| **Command Exec** | `command-executor/execute-command.ts`, `execute-hook-command.ts` | `executeCommand()` via `node:child_process` `exec`; stderr inlined in return string |
-| **Ast-grep** | `ast-grep/*.ts` | sg binary provisioning: pinned manifest, resolver/cache, install script; `provisionSgBinary()` |
-| **Process Sweep** | `process-sweep/*.ts` | Family-based orphan cleanup: LSP daemon proxy/version sweeps, ownership attestation |
-| **Process Tree** | `process-tree.ts`, `process-tree-termination.ts`, `process-stream-reader.ts` | Process tree enumeration/termination, stream reading |
-| **Logging** | `logging/*.ts` | Buffered logger (flush/rotation) + product identity |
-| **Zip Listing** | `zip-entry-listing/*.ts` | tar / zipinfo / Python / PowerShell adapters + symlink target reading |
-| **Ports** | `port-utils.ts` | `findAvailablePort()`, `DEFAULT_SERVER_PORT` |
-| **Misc** | `snake-case.ts`, `jsonc-parser.ts`, `record-type-guard.ts`, `logger.ts` | Key transformation, safe JSONC parse, type guards, injectable shared logger stub |
+| Task | Location | Contract |
+|------|----------|----------|
+| Merge data safely | `src/deep-merge.ts` | Prototype-key filtering; depth limit 50 |
+| Parse frontmatter | `src/frontmatter.ts` | js-yaml JSON_SCHEMA plus rule-mode globs |
+| Read and publish files | `src/file-utils.ts`, `src/atomic-write.ts`, `src/xdg-data-dir.ts` | Symlinks, tolerant fsync, XDG fallback |
+| Spawn portably | `src/runtime/` | Bun-first spawn/which/file with Node fallback |
+| Coordinate internal prompts | `src/prompt-async-gate.ts`, `src/prompt-async-gate/` | Reservation, queue, semantic dedupe, live-route fallback |
+| Parse worktree output | `src/git-worktree/` | Porcelain status, diff stats, formatted changes |
+| Migrate config | `src/migration.ts`, `src/migration/` | Agent, hook, model, category migrations |
+| Execute hook commands | `src/command-executor/execute-command.ts`, `src/command-executor/execute-hook-command.ts` | Child-process command execution and stderr |
+| Provision structural search | `src/ast-grep/` | Pinned sg manifest, resolver/cache, installer |
+| Reclaim owned processes | `src/process-sweep/` | Family predicates and ownership attestation |
+| Handle process trees | `src/process-tree*.ts`, `src/process-stream-reader.ts` | Enumeration, termination, streams |
+| Buffer logs | `src/logging/`, `src/logger.ts` | Rotation, identity, injectable logger |
+| Inspect archives | `src/zip-entry-listing/` | tar/zipinfo/Python/PowerShell adapters |
+| Resolve ports or config | `src/port-utils.ts`, `src/jsonc-parser.ts` | Port selection and JSONC parsing |
 
-## NOTES
+## CONVENTIONS
 
-- **Dependencies:** `js-yaml`, `jsonc-parser` (only production deps).
-- **No path aliases:** relative imports only; strict `ESNext` + `bundler` moduleResolution.
-- **Runtime portability:** `runtime/spawn.ts` wraps both Bun and Node APIs so downstream packages can run under Electron-hosted OpenCode.
-- **Side effects:** `package.json` `sideEffects` pins `src/prompt-async-gate/queue.ts`; tree-shaking must keep the queue module.
-- **Process-sweep invariant:** the LSP daemon *server* shape (`cli.js daemon`, no `mcp`) is NEVER a proxy candidate — only the proxy shape is swept (`process-sweep/lsp-proxy-family.ts`, pinned by tests).
-- **Prompt-async-gate is critical infrastructure:** every internal prompt dispatch across the plugin must route through `dispatchInternalPrompt()` to prevent duplicate injections and race conditions. See the root [`AGENTS.md`](../../AGENTS.md) "Internal message injection is dangerous" section.
+- Public subpath exports in `package.json` avoid forcing all consumers through the main barrel.
+- Runtime shims retain the `globalThis.Bun` probe and Node child-process fallback for Electron-hosted consumers.
+- `sideEffects` explicitly preserves `src/prompt-async-gate/queue.ts` during tree-shaking.
+- Every internal session prompt must route through `dispatchInternalPrompt()` to preserve reservation and deduplication.
+- Relative imports, strict ESNext, and bundler module resolution; no path aliases.
+- Runtime dependencies include model-core, omo-config-core, js-yaml, and jsonc-parser.
+- Process-sweep mirrors LSP daemon paths/auth/ownership layout; change those contracts in lockstep.
+- Shared logger consumers may retain adapter re-export shims; keep behavior in this core.
+
+## ANTI-PATTERNS
+
+- Never classify `cli.js daemon` without `mcp` as a proxy sweep candidate.
+- Generic argv matching cannot authorize stale-version termination; keep ownership attestation.
+- Never import the vendored LSP daemon into utils to recover its private layout.
+- Never bypass the internal prompt gate or drop its queue's side-effect declaration.
+- Never widen frontmatter parsing beyond JSON_SCHEMA to enable executable YAML tags.
+
+## CHECKS
+
+- `bun run --cwd packages/utils test`
+- `bun run --cwd packages/utils typecheck`

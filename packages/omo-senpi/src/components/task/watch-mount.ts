@@ -63,7 +63,11 @@ class WatchSurface {
 
   start(): void {
     if (this.options.initialPath !== undefined) this.showWatch(this.options.initialPath)
-    else this.showTree(undefined)
+    else {
+      // The tree's synthetic root and workflow summaries are not steering targets.
+      const firstWorker = this.options.service.list().find((thread) => thread.path !== "/root" && thread.type !== "workflow")
+      this.showTree(firstWorker?.path)
+    }
   }
 
   // Ends the watch and asks the overlay to close. Safe to call more than once.

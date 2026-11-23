@@ -1,12 +1,12 @@
 # tmux-core — Tmux Primitives (Core)
 
-**Generated:** 2026-06-16
+**Generated:** 2026-11-17. **Score:** 12; distinct domain: shared tmux resource lifecycle, authentication, and cmux compatibility.
 
 ## OVERVIEW
 
-Harness-neutral tmux primitives consumed by the OpenCode adapter (`omo-opencode`), team-mode visualization (`team-core`), OpenClaw injection (`openclaw-core`), and the `interactive_bash` tool. Every function is dependency-injected so adapters supply `getTmuxPath()`, `log`, and server-health checks. Package: `@oh-my-opencode/tmux-core`.
+Harness-neutral tmux primitives consumed by the OpenCode adapter (`omo-opencode`), team-mode visualization (`team-core`), OpenClaw injection (`openclaw-core`), and the `interactive_bash` tool. Lifecycle functions accept injected dependencies so adapters supply `getTmuxPath()`, `log`, and server-health checks. Package: `@oh-my-opencode/tmux-core`.
 
-## CATEGORY MAP
+## WHERE TO LOOK
 
 | Area | Key Files | Key Exports |
 |------|-----------|-------------|
@@ -22,7 +22,7 @@ Harness-neutral tmux primitives consumed by the OpenCode adapter (`omo-opencode`
 ```
 spawnTmuxPane / spawnTmuxSession / spawnTmuxWindow
   ├─ guard: config.enabled
-  ├─ guard: isInsideTmux()
+  ├─ guard: isInsideTmux() or cmux compatibility
   ├─ guard: isServerRunning(serverUrl)
   ├─ resolve tmux binary (or cmux compat shim)
   └─ tmux split-window / new-session / new-window + placeholder command
@@ -36,3 +36,14 @@ spawnTmuxPane / spawnTmuxSession / spawnTmuxWindow
 - **Stale session sweep:** `stale-session-sweep.ts` matches `omo-agents-<pid>` sessions, skips the current PID, and kills sessions whose owner process is dead.
 
 Parent: [packages/AGENTS.md](../AGENTS.md)
+
+## ANTI-PATTERNS
+
+- Never retry `can't find pane` or `can't find session`; the runner treats them as terminal errors.
+- Never spawn authenticated cmux panes, windows, or sessions; these paths deliberately skip.
+- Never put the server password in pane argv; use private `0700` directories and exclusive `0600` files, read once and unlinked before launch.
+- Never sweep the current PID's session or a session with a live owner.
+
+## COMMANDS
+
+`bun run --cwd packages/tmux-core test` and `bun run --cwd packages/tmux-core typecheck`.

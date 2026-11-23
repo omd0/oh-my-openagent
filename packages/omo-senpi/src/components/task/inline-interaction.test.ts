@@ -116,6 +116,19 @@ describe("createInlineInteraction", () => {
     expect(testHarness.interaction.decorate(DAG, "row", 80)).not.toContain("›")
   })
 
+  it("#given Kitty key events #when Alt+Down is pressed and released #then focus survives until Enter", () => {
+    const testHarness = harness()
+    testHarness.interaction.setGroup("task", "session-a", [TASK])
+    const { handle } = testHarness.subscribe()
+    const release = "\x1b[1;3:3B"
+
+    expect(handle(release)).toBeUndefined()
+    expect(handle(ALT_DOWN)).toEqual({ consume: true })
+    expect(handle(release)).toBeUndefined()
+    expect(handle(ENTER)).toEqual({ consume: true })
+    expect(testHarness.opened).toEqual([TASK])
+  })
+
   it("#given an active focus #when Escape or Alt+Up arrives #then focus leaves without opening", () => {
     for (const cancel of [ESC, ALT_UP]) {
       // given

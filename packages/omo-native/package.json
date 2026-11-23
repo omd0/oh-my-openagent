@@ -5,7 +5,8 @@
   "description": "OmO Native - the standalone omo command with the OMO extension built in: bun add -g omo-ai",
   "bin": {
     "omo": "bin/omo.js",
-    "pi": "bin/omo.js"
+    "pi": "bin/omo.js",
+    "oh-my-openagent": "bin/omo.js"
   },
   "files": [
     "bin",

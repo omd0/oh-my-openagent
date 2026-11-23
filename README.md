@@ -57,7 +57,21 @@ npm install --global ./packages/omo-native
 omo
 ```
 
-The installed command is still `omo`. Keep the clone: the local package installation can link to it. To install a particular myomo release, check out its tag before running the build and install commands.
+The installed commands are `omo`, `pi`, and `oh-my-openagent`. Keep the clone: the local package installation can link to it. To install a particular myomo release, check out its tag before running the build and install commands.
+
+If npm reports that `omo-ai`'s postinstall is not covered by `allowScripts`, repeat the install with explicit script approval:
+
+```bash
+npm install --global --allow-scripts=omo-ai ./packages/omo-native
+```
+
+Alternatively, run the postinstall manually from the repository root after installation:
+
+```bash
+node packages/omo-native/bin/senpi-patch.mjs
+```
+
+This prepares the installed Senpi runtime, plugin launch specification, and engine preparation stamp.
 
 `get.omo.dev`, `npm i -g omo-ai`, and `bun add -g omo-ai` distribute upstream OmO, not this fork. The upstream [installation guide](docs/guide/install.md) remains available for reference.
 

@@ -324,6 +324,8 @@
       "version": "5.1.75",
       "bin": {
         "omo": "bin/omo.js",
+        "pi": "bin/omo.js",
+        "oh-my-openagent": "bin/omo.js",
       },
       "dependencies": {
         "@code-yeongyu/senpi": "2026.11.15-2",

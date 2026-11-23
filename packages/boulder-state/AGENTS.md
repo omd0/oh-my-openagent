@@ -1,39 +1,59 @@
-# boulder-state — Work-Tracking State Machine (Core)
-
-**Generated:** 2026-08-24 / f3642fcda
+# boulder-state - Work Tracking Core
 
 ## OVERVIEW
+Dependency-free work-plan state machine shared across harnesses, persisted at <worktree-root>/.omo/boulder.json.
 
-Tracks the active work plan (the "boulder") across sessions, worktrees, and subagent task delegations. State persists in `<worktree-root>/.omo/boulder.json` (`schema_version: 2`). Zero npm dependencies — pure functional state machine over JSON. Package: `@oh-my-opencode/boulder-state`.
+Score: 12; distinct domain: durable work selection and cross-harness continuation state.
+Measured: 27 files, 23 TypeScript files, own package config, src/index.ts boundary;
+132 top-level source declarations and 78 distinct explicit exports; centrality unmeasured.
 
-## STATE MODEL
+## WHERE TO LOOK
+| Task | Location | Notes |
+|------|----------|-------|
+| Public package API | src/index.ts, index.d.ts | Read, write, plans, sessions, review artifacts |
+| Schema and work statuses | src/types.ts | BoulderState and BoulderWorkState |
+| State loading and work lookup | src/storage/read-state.ts | Legacy-state projection and resume options |
+| Work selection and completion | src/storage/write-state.ts | Mirror synchronization and completion transition |
+| Session and task registration | src/storage/{session,task}.ts | Work-scoped variants and elapsed timers |
+| Stale-session demotion | src/storage/stale-work.ts | Activity evidence and paused-work restoration |
+| Plan checklists and progress | src/plan-checklist.ts, src/storage/plan-progress.ts | Structured/simple modes |
+| Current plan task | src/top-level-task.ts | TopLevelTaskRef |
+| Plan paths and review artifacts | src/storage/{path,review-artifacts}.ts | Containment and content hashes |
+| Session normalization tests | test/normalize-session-id.test.ts | Separate from src test globs |
 
-Every `BoulderState` carries `active_work_id` + a `works` map. The root-level fields (`active_plan`, `plan_name`, `status`, `session_ids`, `task_sessions`, …) are a **mirror** of the currently active work. `selectMirrorWork()` picks the active work (by id, else most-recently-updated); `projectWorkToMirror()` copies it to root; `writeBoulderState()` syncs root → work entry before serialization. Legacy single-work states with no `works` map auto-upgrade via `getBoulderWorks()`.
+## CONVENTIONS
+- Schema version 2 carries works plus active_work_id; root fields mirror the active work.
+- selectMirrorWork prefers active_work_id, then newest update; projectWorkToMirror copies it.
+- writeBoulderState synchronizes root fields back into the selected work before serialization.
+- Mirror-only legacy states gain a work through getBoulderWorks.
+- normalizeSessionId preserves opencode:/codex:/senpi: prefixes; bare ids default to opencode.
+- Senpi callers must pass senpi:<id> to read APIs such as getWorkForSession.
+- OpenCode features/boulder-state re-exports this package for hooks and the boulder CLI.
+- Codex ulw-execute-continuation and Senpi boulder-eligibility consume the same state.
+- OpenCode and Senpi continuation reads reconcile stale works first; callers supply the
+  sessions directory through resolveAgentSessionsDirectory. This package resolves no agent home.
+- completeBoulder is the only completion transition; abnormal session death demotes work.
+- Staleness uses the newest transcript mtime, updated_at, or started_at; absent evidence is stale.
+- OMO_BOULDER_STALE_WORK_THRESHOLD_MS overrides the six-hour default with a positive number.
+- Reconciliation pauses active works with stale_since; no stale work means no disk write.
+- Reconciliation swallows failures and leaves completed, abandoned, and status-less work alone.
+- Transcript scans inspect only directories shaped like the work cwd/worktree, plus flat legacy logs.
+- selectActiveWork and appendSessionIdForWork restore stale-stamped pauses and remove the stamp;
+  explicitly paused work stays paused. Resume readers exclude completed/abandoned only.
+- First creation writes .omo/.gitignore with rules/ exclusions preserved.
+- Structured parsing recognizes TODOs and Final Verification Wave sections; task labels are
+  N/T<n>[.<n>[a]] for TODOs and F<n>/H<n> for final checks, with supported separators.
+- A structured parse with no counted rows falls back when other top-level checkboxes exist.
+- Otherwise simple mode counts top-level dash/star checkboxes; fences and indented rows are ignored.
+- [x] completes, [ ] remains actionable, and [~] contributes only to total, never continuation.
+- isStructuredTaskRow serves OpenCode validation; Codex Stop keeps its own plan-checklist copy.
 
-## PUBLIC API (`src/index.ts`)
+## ANTI-PATTERNS
+- Never accept __proto__, prototype, or constructor as task keys.
+- Never treat empty {}, arrays, or non-object state as valid BoulderState.
+- Never replace completion with stale-work demotion or reactivate an explicit pause.
 
-| Area | Functions |
-|------|-----------|
-| **Read** (`storage/read-state.ts`) | `readBoulderState`, `getBoulderWorks`, `getActiveWorks`, `getWorkById/ByPlanName/ForSession`, `getWorkResumeOptions`, `getTaskSessionState` |
-| **Write** (`storage/write-state.ts`) | `writeBoulderState`, `clearBoulderState`, `createBoulderState`, `addBoulderWork`, `completeBoulder`, `selectActiveWork`, `generateWorkId` |
-| **Sessions/tasks** (`storage/{session,task}.ts`) | `appendSessionId(ForWork)`, `upsertTaskSessionState(ForWork)`, `startTaskTimer`, `endTaskTimer` |
-| **Stale works** (`storage/stale-work.ts`) | `reconcileStaleWorks`, `isWorkStale`, `resolveStaleWorkThresholdMs`, `DEFAULT_STALE_WORK_THRESHOLD_MS`, `STALE_WORK_THRESHOLD_ENV_KEY` |
-| **Plans** (`plan-checklist.ts`, `top-level-task.ts`, `storage/plan-progress.ts`) | `getPlanChecklist`, `parsePlanChecklist`, `readCurrentTopLevelTask`, `findPrometheusPlans`, `getPlanProgress`, `getPlanName` |
-| **Paths** (`storage/path.ts`) | `getBoulderFilePath`, `resolveBoulderPlanPath(ForWork)` |
-
-## CONSUMERS
-
-- **omo-opencode** (`workspace:*`): `features/boulder-state/*` re-exports; hooks `atlas`, `ulw-execute`, `todo-continuation-enforcer`; CLI `boulder` command.
-- **omo-codex** (`file:` dep): `plugin/components/ulw-execute-continuation/boulder-reader.ts`.
-- **omo-senpi** (`workspace:*`): `src/components/ulw-execute-continuation/boulder-eligibility.ts` reads work state with `senpi:`-prefixed session ids.
-- Both ulw-execute read paths (`omo-opencode` hook, `omo-senpi` continuation component) call `reconcileStaleWorks` first and pass the agent sessions directory resolved by `omo-senpi`'s `resolveAgentSessionsDirectory`; this package resolves no home path of its own.
-
-## NOTES
-
-- **Prototype-pollution guard:** `RESERVED_KEYS = {__proto__, prototype, constructor}` — task upserts reject matching keys.
-- **Session IDs are normalized** with an `opencode:` / `codex:` / `senpi:` prefix (`normalizeSessionId`). Senpi callers must pass a pre-prefixed `senpi:<id>` to read APIs such as `getWorkForSession`; the default platform stays `opencode`.
-- **`readBoulderState` rejects empty `{}`** as invalid (returns null), alongside non-object and array payloads.
-- **Stale works:** `completeBoulder` is the only completion transition, so a work whose session died abnormally would stay `active` forever (#8413). `reconcileStaleWorks(directory, options?)` demotes an `active` work to `paused` and stamps `stale_since` when its last activity - the newest of its sessions' transcript mtimes, `updated_at` and `started_at` - is at least `OMO_BOULDER_STALE_WORK_THRESHOLD_MS` (default 6h) old; a work with no activity evidence at all is stale. Nothing stale means no write, `completed`/`abandoned` and status-less records are never touched, and every failure is swallowed. Transcripts are read only under session directories whose alphanumeric shape matches the work's own cwd or worktree, because an agent home accumulates thousands of them. `selectActiveWork`/`appendSessionIdForWork` return a `stale_since` work to `active` and drop the stamp; a work paused without the stamp keeps its status. Readers are unchanged - `getActiveWorks`/`getWorkResumeOptions` still filter `completed`/`abandoned` only.
-- **`writeBoulderState` self-creates `.omo/.gitignore`** (`*`, `!/rules/`) on first `mkdir`.
-- **Plan parsing** has two modes: structured (when `## TODOs` / `## Final Verification Wave` headings exist) counts only labeled rows inside those sections (`N` / `T<n>[.<n>[a]]` under TODOs, `F<n>` / `H<n>` under the final wave, followed by `.`, space, `-` or em-dash); otherwise a simple mode counts any top-level `-`/`*` checkbox. A structured parse that counts nothing while top-level checkboxes exist under another heading falls back to simple mode. `[x]` is completed, `[ ]` is remaining, and `[~]` (blocked) counts toward the total only, so it never keeps a continuation alive. `isStructuredTaskRow` exposes the row grammar to the OpenCode plan-format validator; the Codex Stop hook keeps its own copy in `omo-codex/plugin/components/ulw-execute-continuation/src/plan-checklist.ts`. Code fences (`markdown-fence.ts`) and indented checkboxes are skipped.
-- Parent: [`packages/AGENTS.md`](../AGENTS.md).
+## COMMANDS
+- bun run --cwd packages/boulder-state typecheck
+- bun run --cwd packages/boulder-state test
+- bun test packages/boulder-state/test/normalize-session-id.test.ts

@@ -1,4 +1,4 @@
-import { getKeybindings, Key, matchesKey, truncateToWidth } from "@earendil-works/pi-tui"
+import { getKeybindings, isKeyRelease, Key, matchesKey, truncateToWidth } from "@earendil-works/pi-tui"
 
 // One focus menu and one click path for every inline worker row: ordinary task rows and DAG worker rows.
 // Both end in the same `open` callback. Nothing here starts, steers or stops a worker; it only names a
@@ -133,6 +133,8 @@ export function createInlineInteraction(deps: InlineInteractionDeps): InlineInte
   // Keyboard focus. Alt+Down claims the chord only while worker rows are visible and no watch is open.
   // While focus is active, the keys it owns are consumed; any other key leaves focus and reaches the editor.
   const onInput: InputHandler = (data) => {
+    // Raw listeners see Kitty releases before the host filters them for the focused component.
+    if (isKeyRelease(data)) return undefined
     if (disposed || !ownedNow() || deps.busy()) {
       leave()
       return undefined

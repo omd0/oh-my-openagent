@@ -1,12 +1,19 @@
 # shared-skills — Cross-Harness SKILL.md Bundle (Skills)
 
-**Generated:** 2026-08-24 (f3642fcda)
+**Generated:** 2026-11-17. **Score:** 8; distinct domain: authored skills, upstream materialization, and harness synchronization.
 
 ## OVERVIEW
 
 Hand-authored, cross-harness skill bundle shared between the OpenCode and Codex editions. Mostly authored skill data, with skill-owned scripts/assets when required and no transform inside the package. `index.mjs` exports `sharedSkillsRootPath()` returning the absolute path to `skills/`; it probes `SKILLS_PROBE_SPECIFIERS` (`./skills/`, `../skills/`, `../../skills/`) nearest-first and returns the first that exists, falling back to the sibling path. The three levels cover `dist/index.js` (sibling), `dist/cli/index.js` (parent), and the Codex marketplace layout `plugins/omo/dist/cli/` (grandparent). Package: `@oh-my-opencode/shared-skills` (`files`: `index.mjs`, `index.d.ts`, `skills`).
 
-## SKILLS (19 under `skills/<name>/`)
+## WHERE TO LOOK
+
+| Task | Location | Notes |
+|------|----------|-------|
+| Resolve bundled skill roots | `index.mjs` | Nearest-first three-level probe |
+| Edit authored instructions | `skills/<name>/SKILL.md` | 19 shared skill routers |
+| Materialize pinned frontend references | `scripts/frontend-refs-manifest.mjs`, `scripts/materialize-frontend-refs.mjs` | Submodules remain outside shipped skills |
+| Check research deliverable gates | `skills/ulw-research/scripts/` | Zero-dependency Node CLI |
 
 `programming`, `debugging`, `eval-integrity`, `frontend`, `visual-qa`, `ast-grep`, `coding-agent-sessions`, `data-scientist`, `git-master`, `refactor`, `review-work`, `ulw-execute`, `ulw-plan`, `ulw-research`, `init-deep`, `remove-ai-slops`, `lsp-setup`, `ultimate-browsing`, `browser`.
 
@@ -59,7 +66,7 @@ upstreams/{open-design,taste-skill,ui-ux-pro-max,designpowers}   # pinned submod
 - `omo-opencode/src/cli/install-ast-grep-sg.ts` — finds the ast-grep skill dir for binary install.
 - `omo-codex/plugin` (`file:` dep) — `sync-skills.mjs` is the only transformer.
 
-## NOTES
+## ANTI-PATTERNS AND NOTES
 
 - **No generator builds the skills** — they are authored by hand; the build step is a plain `cp -R`.
 - **Test files, caches, and source metadata are excluded** when Codex copies skills.

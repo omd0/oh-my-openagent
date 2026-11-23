@@ -1,6 +1,10 @@
 # omo-senpi src
 
+## OVERVIEW
+
 Source root of the Senpi adapter package. The package barrel (`index.ts`) exports only `omoSenpiAdapterPackageName` and re-exports `./install`; everything else is consumed through `extension/index.ts` (extension entry) and per-component barrels. Package anatomy, build, and QA live one level up in `../AGENTS.md`.
+
+**Score:** 11; distinct domain: adapter composition, host boundaries, and executable package audits.
 
 ## WHERE TO LOOK
 

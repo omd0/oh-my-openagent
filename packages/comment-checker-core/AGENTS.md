@@ -1,12 +1,12 @@
 # comment-checker-core — apply-patch Parser + Checker Runner (Core)
 
-**Generated:** 2026-06-17
+**Generated:** 2026-11-17. **Score:** 9; distinct domain: apply-patch parsing and the injected checker process protocol.
 
 ## OVERVIEW
 
-Two responsibilities: (1) parse LLM apply-patch edits into structured `CheckerEdit[]`, and (2) run the external `@code-yeongyu/comment-checker` binary to detect AI-slop comments in changed code. Spawn is dependency-injected (not `child_process.spawn`) so both editions can drive the same core. Package: `@oh-my-opencode/comment-checker-core`.
+Two responsibilities: (1) parse LLM apply-patch edits into structured `CheckerEdit[]`, and (2) run the external `@code-yeongyu/comment-checker` binary to detect AI-slop comments in changed code. Spawn is dependency-injected (not `child_process.spawn`) so host adapters can drive the same core. Package: `@oh-my-opencode/comment-checker-core`.
 
-## PUBLIC API (`src/index.ts`)
+## WHERE TO LOOK
 
 | Export | Source | Role |
 |--------|--------|------|
@@ -16,12 +16,13 @@ Two responsibilities: (1) parse LLM apply-patch edits into structured `CheckerEd
 | `resolveCommentCheckerBinary(input)` | `runner.ts` | locate binary via `createRequire(@code-yeongyu/comment-checker)` |
 | `runCommentChecker(input, options)` | `runner.ts` | pipe `HookInput` JSON to stdin, read stdout/stderr, return `CheckResult` |
 | `COMMENT_CHECKER_VERSION_MARKER`, `isCachedCommentCheckerCurrent(cacheDir)`, `recordCachedCommentCheckerRelease(cacheDir)` | `cached-release.ts` | version marker beside the binary in the shared cache slot; a missing or different marker means the cached checker is stale and must be re-downloaded (#8850) |
-| types (17) | `types.ts` | `CheckerEdit`, `HookInput`, `CheckResult`, `SpawnFn`/`SpawnProcess`/`SpawnSignal`, `ApplyPatchFileMetadata`, … |
+| release/package binary helpers | `release.ts`, `package-binary.ts` | select the release asset and resolve installed package payloads |
+| types | `types.ts` | `CheckerEdit`, `HookInput`, `CheckResult`, `SpawnFn`/`SpawnProcess`/`SpawnSignal`, `ApplyPatchFileMetadata`, … |
 
 ## DEPENDENCIES & CONSUMERS
 
 - **Depends on:** `@oh-my-opencode/utils` (`isRecord` from `utils/record-type-guard`).
-- **Consumed by BOTH editions:** `omo-opencode/src/hooks/comment-checker/{hook,types,cli}.ts` and `omo-codex/plugin/components/comment-checker/src/{core,core-values,apply-patch,request-extractor}.ts`.
+- **Consumers:** OpenCode hooks, Codex component, Senpi component, and the native distribution share this runner/parser rather than implementing another checker protocol.
 
 ## NOTES
 
@@ -31,3 +32,13 @@ Two responsibilities: (1) parse LLM apply-patch edits into structured `CheckerEd
 - **Spawn and stdin failures are contained:** nothing escapes as an unhandled error. A rejected `send` alone never reports comments (an undelivered exit `2` is empty); a spawn failure is reported through `failure` as above. An output stream that cannot be read never hides the exit outcome.
 - **`HookInput` mirrors OpenCode's `tool.execute.before` input schema** exactly, so the same parser serves the Codex `PreToolUse`/`PostToolUse` adapters.
 - Parent: [`packages/AGENTS.md`](../AGENTS.md).
+
+## ANTI-PATTERNS
+
+- Never replace injected `SpawnProcess` with Node `ChildProcess`.
+- Never remove the adapter's stdin error listener before the stream lifetime ends.
+- Never report comments from a failed stdin send, even if the process exits with code `2`.
+
+## COMMANDS
+
+`bun run --cwd packages/comment-checker-core test` and `bun run --cwd packages/comment-checker-core typecheck`.

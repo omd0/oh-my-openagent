@@ -1,12 +1,16 @@
-# team-core — Team-Mode Domain Primitives (Core)
+# team-core - Team-Mode Domain Primitives (Core)
 
-**Generated:** 2026-06-16 (updated 2026-09-08)
+**Generated:** 2026-11-17
 
 ## OVERVIEW
 
-Harness-neutral domain primitives for team-mode: registry, mailbox, tasklist, state store, worktree, and tmux layout. Consumed by the OpenCode adapter at [omo-opencode team-mode](../omo-opencode/src/features/team-mode/AGENTS.md) (gated on `team_mode.enabled`). Package: `@oh-my-opencode/team-core`.
+Harness-neutral registry, mailbox, tasklist, state, worktree, and tmux primitives (`@oh-my-opencode/team-core`), consumed by OpenCode team-mode and Senpi task teams.
 
-## DOMAIN PRIMITIVES
+**Why here:** score 15; distinct persisted team domain shared by two adapters.
+
+## WHERE TO LOOK
+
+File paths in this table are relative to `src/`; implementation invariants are in [`src/AGENTS.md`](src/AGENTS.md).
 
 | Area | Files | Purpose |
 |------|-------|---------|
@@ -33,13 +37,20 @@ The tasklist directory is `<stateDir>/teams/runtime/<teamRunId>/tasks` (`src/tea
 
 A member mailbox inbox is `<stateDir>/teams/runtime/<teamRunId>/inboxes/<memberName>` (`src/team-registry/paths.ts`, `getInboxDir`; `packages/senpi-task/src/team/storage.ts`, `resolveTeamMemberInboxDir`). Unread files are `<messageId>.json` (`src/team-mailbox/send.ts`); `listUnreadMessages` reads non-hidden JSON files and sorts by timestamp (`src/team-mailbox/inbox.ts`). Each file follows `MessageSchema` (`src/types.ts`): `version: 1`, UUID `messageId`, `from`, `to`, `kind`, `body`, optional `summary`, optional `references`, positive epoch-ms `timestamp`, optional UUID `correlationId`, and optional `color`. During delivery the same directory holds `.delivering-<messageId>.json`; acknowledged history is under `processed/<messageId>.json` (`src/team-mailbox/reservation.ts`, `src/team-mailbox/ack.ts`). These are not unread messages; external history readers should deduplicate by `messageId`.
 
-## NOTES
+## CONVENTIONS
 
-- **82 TypeScript files** across the 6 primitives plus shared top-level modules (`types.ts`, `config.ts`, `logger.ts`, `member-parser.ts`, `session-client.ts`, `shell-quote.ts`, `tolerant-fsync.ts`, `resolve-caller-team-lead.ts`).
+- **98 TypeScript files** across the 6 primitives plus shared top-level modules (`types.ts`, `config.ts`, `logger.ts`, `member-parser.ts`, `session-client.ts`, `shell-quote.ts`, `tolerant-fsync.ts`, `resolve-caller-team-lead.ts`).
+- The private package exports TypeScript sources directly, including named subsystem entries and the `./*` deep-import contract; there is no built `dist` entry.
 - **Zod schemas** in `types.ts` define `TeamSpec`, `Member`, `Message`, `Task`, `RuntimeState`, and `AGENT_ELIGIBILITY_REGISTRY`.
 - **Eligible agents** are sisyphus, atlas, sisyphus-junior, and hephaestus (conditional). Hard-reject agents are blocked at parse time.
 - **Atomic writes** via `team-state-store/locks.ts`: temp file + rename, with file-based locking for task claims and state transitions.
 - Parent: [`packages/AGENTS.md`](../AGENTS.md).
+
+## ANTI-PATTERNS
+
+- Do not infer missing member routing/model metadata for external readers; absent optional fields stay absent.
+- Do not conflate decimal team tasklist IDs with Senpi `st_*` task-record IDs.
+- Do not expose `.delivering-*` reservations or `processed/` history as unread mailbox messages; deduplicate history by `messageId`.
 
 ## QA
 

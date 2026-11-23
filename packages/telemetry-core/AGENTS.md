@@ -1,12 +1,14 @@
 # telemetry-core — Daily-Active Telemetry Primitives (Core)
 
-**Generated:** 2026-08-24
+**Generated:** 2026-11-17. **Score:** 10; distinct domain: consent, privacy, transport entrypoints, and durable telemetry.
 
 ## OVERVIEW
 
 Harness-neutral PostHog telemetry: env-gated opt-out, SHA256-hashed random install id, once-per-UTC-day capture dedup, and JSONL diagnostics. No product-specific strings live here — each consumer passes a `TelemetryProductConfig` (event name, cache dir, env prefix). Package: `@oh-my-opencode/telemetry-core`.
 
-## PUBLIC API (`src/index.ts` barrel)
+## WHERE TO LOOK
+
+Public API through the `src/index.ts` barrel:
 
 | Module | Key exports |
 |--------|-------------|
@@ -25,7 +27,7 @@ Harness-neutral PostHog telemetry: env-gated opt-out, SHA256-hashed random insta
 
 ## OPENTELEMETRY HOST (`@oh-my-opencode/telemetry-core/otlp` subpath, NOT in the main barrel)
 
-The collector transport (telemetry-collector plan, todo 21). Kept off the main barrel so PostHog-only consumers never load the OTLP code. Nothing wires it yet (todo 22 adds `telemetry.sink`).
+Collector transport exposed through its own gated subpath. Kept off the main barrel so PostHog-only consumers never load the OTLP code. See `src/AGENTS.md` for implementation-test routing.
 
 | Module | Role |
 |--------|------|
@@ -62,3 +64,9 @@ The collector transport (telemetry-collector plan, todo 21). Kept off the main b
 - **Diagnostics** JSONL: 7-day retention, 256 KB cap, cleanup on every write.
 - **`createEventTelemetryClient`** (events.ts) — event telemetry with a per-product `propertyAllowlist`: unknown properties are DROPPED with diagnostics, never sent. Hard-rejected keys: `$ip`, non-allowlisted `$` keys (only `$os`, `$os_version`, `$process_person_profile`, `$session_id` pass), `*_text|*_path|*_prompt` suffixes (allowlisted non-string flags excepted), and non-finite numbers. Batching overrides (`flushAt: 20`, `flushInterval: 10s`) are applied LAST so a product config cannot weaken them. `disableGeoip: false` lets PostHog derive `$geoip_country_code` server-side from the transport IP — the client still never authors/stores an IP. No-op client when disabled, same as the daily-active path.
 - Parent: [`packages/AGENTS.md`](../AGENTS.md).
+
+## ANTI-PATTERNS
+
+- Never expose the ungated OTLP sender or providers through a public package subpath.
+- Never derive install identity from machine attributes, weaken event property allowlists, or hand-edit vendored protobuf output.
+- Never load the PostHog SDK or OTLP runtime through the injected entry; preserve their separate lazy transport boundaries.

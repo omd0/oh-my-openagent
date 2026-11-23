@@ -1,30 +1,37 @@
-# skills-loader-core — Skill Loading + Matching (Core)
-
-**Generated:** 2026-08-24 (f3642fcda)
+# skills-loader-core
 
 ## OVERVIEW
+Harness-neutral skill discovery, builtin/runtime skill sources, matching, and slash-command primitives feed adapter integrations.
 
-Harness-neutral skill loading, builtin skill, runtime skill, and skill matching primitives.
-Package `@oh-my-opencode/skills-loader-core`.
-Confirmed by grep: consumed by `omo-opencode` skill features in ~70 files across `src/features/builtin-skills`, `src/features/opencode-skill-loader`, `src/features/opencode-runtime-skills`, `src/tools/skill`, and `src/hooks/auto-slash-command`.
+Score: 12; distinct domain: shared skill package and export boundaries.
+Measured: 141 files, 89% code, local configuration, barrel boundary, 287 AST declarations, 202 exported declarations.
+Reference centrality is unmeasured.
 
-## SUBSYSTEMS
+## WHERE TO LOOK
+| Task | Location | Notes |
+|------|----------|-------|
+| Inspect public entrypoints | `package.json`, `src/index.ts` | Raw-TS root and feature/tool/hook subpaths |
+| Discover and merge SKILL.md sources | `src/features/opencode-skill-loader/` | Existing deeper guide owns loader details |
+| Change builtin catalog | `src/features/builtin-skills/` | Existing deeper guide owns builtin content |
+| Serve runtime security skills | `src/features/opencode-runtime-skills/` | Selection and local source server |
+| Match skill or command names | `src/tools/skill/` | Exact/short-name matching and scope sorting |
+| Detect slash commands | `src/hooks/auto-slash-command/` | Detection and processed-command state |
+| Resolve paths and shell context | `src/shared/` | Config directories, plugin identity, path helpers |
+| Change skill configuration | `src/config/` | Source schema and Git environment prefix |
+| Change source policy | `src/AGENTS.md` | Containment, matching and disabled names |
 
-| Area | Purpose | Sub-AGENTS.md |
-|------|---------|---------------|
-| `features/opencode-skill-loader/` | Multi-source SKILL.md discovery, parse, merge, deduplication | [src/features/opencode-skill-loader/AGENTS.md](src/features/opencode-skill-loader/AGENTS.md) |
-| `features/builtin-skills/` | Built-in skill catalog (git-master, browser variants, frontend, debugging, visual-qa, security, review-work, team-mode) | [src/features/builtin-skills/AGENTS.md](src/features/builtin-skills/AGENTS.md) |
-| `features/opencode-runtime-skills/` | Runtime security skill source (security-research, security-review) | — |
-| `tools/skill/` | Skill name matching and scope priority sorting | — |
-| `hooks/auto-slash-command/` | Slash command detection and processed command store | — |
-| `shared/` | Skill path resolver, config dir discovery, plugin identity, shell env | — |
-| `config/` | Git env prefix and skills config schema | — |
+## CONVENTIONS
+- Package identity is `@oh-my-opencode/skills-loader-core`; it is a private workspace.
+- Subpaths expose loader, builtin/runtime skills, skill matching, auto-slash-command, shared and config modules.
+- OpenCode's corresponding skill feature paths remain consumers of this extracted implementation.
+- `selectRuntimeSecuritySkills()` and `createRuntimeSkillSourceServer()` provide security-research/security-review sources.
+- The source server supports Bun.serve and Node HTTP, binds loopback, sends `cache-control: no-store`, and returns 404 for unknown paths.
 
-## NOTES
+## ANTI-PATTERNS
+- Never introduce adapter imports into this harness-neutral package.
+- Never turn an ambiguous short-name match into an arbitrary selected skill.
+- Never bypass disabled skill configuration when adding a new discovery source.
 
-- **Exports:** barrel root plus subpath exports for `./opencode-skill-loader`, `./builtin-skills`, `./opencode-runtime-skills`, `./skill`, `./auto-slash-command`, `./shared/*`, and `./config/*`.
-- **Skill matching:** `tools/skill/skill-matcher.ts` provides `matchSkillByName()`, `matchCommandByName()`, and `findPartialMatches()`; ambiguous short-name matches refuse to resolve.
-- **Runtime skill source:** `features/opencode-runtime-skills/` exports `selectRuntimeSecuritySkills()` and `createRuntimeSkillSourceServer()`; dual-runtime (Bun.serve preferred, Node http fallback), loopback-only, `cache-control: no-store`, 404 on unknown paths.
-- **123 TypeScript files** under `src/` (86 non-test). Barrel entry `src/index.ts`.
-
-Parent: [packages/AGENTS.md](../AGENTS.md)
+## COMMANDS
+From this package: `bun run typecheck`, `bun run test`.
+From root: `bun test packages/skills-loader-core`.

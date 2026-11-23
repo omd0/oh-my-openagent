@@ -1,26 +1,28 @@
 # packages/ - Monorepo Packages
 
-**Generated:** 2026-08-24 / f3642fcda
+**Generated:** 2026-11-17. **Score:** 9; distinct domain: workspace boundaries, packaging, and cross-package ownership.
 
 ## OVERVIEW
 
-45 sibling packages across 6 roles. `omo-opencode` is the **build entry** for the main npm dist (`packages/omo-opencode/src/index.ts` → bundled into root `dist/`). The root `package.json` `files` array ships `dist/` + `bin/` + `postinstall.mjs` plus selected sibling artifacts (`lsp-tools-mcp`, `lsp-daemon`, `git-bash-mcp` `dist/`; `shared-skills`; the `omo-codex` plugin bundle; and `.opencode`/`.agents` command+skill dirs). Everything else is a sibling with its own package boundary; check the package docs before assuming a publication, deployment, or local-install surface.
+51 sibling directories contain adapters, shared engines, desktop components, distribution metadata, skills, and hosted applications; each package owns its publication and install contract.
 
-## ROLE MAP
+## STRUCTURE
 
 | Role | Count | Packages |
 |------|-------|----------|
-| **Platform launcher packages** | 12 | One per (OS × arch × variant). Uniform layout: `bin/` + `package.json` only. Selected at install time by `bin/` shim + `postinstall.mjs`. |
+| **Platform launcher packages** | 12 | One per OS/architecture/variant. Package metadata selects a generated `bin/` payload at install time. |
 | **MCP packages** | 4 | `lsp-tools-mcp`, `git-bash-mcp`, `lsp-daemon`, `ast-grep-mcp` |
-| **Core packages** | 20 | `utils`, `model-core`, `prompts-core`, `rules-engine` (was `rules-core`), `agents-md-core`, `comment-checker-core`, `hashline-core`, `boulder-state`, `telemetry-core`, `lsp-core`, `mcp-stdio-core`, `tmux-core`, `claude-code-compat-core`, `skills-loader-core`, `mcp-client-core`, `openclaw-core`, `team-core`, `delegate-core`, `omo-config-core`, `memory-core` |
+| **Core packages** | 22 | `utils`, `model-core`, `prompts-core`, `rules-engine`, `agents-md-core`, `comment-checker-core`, `hashline-core`, `boulder-state`, `telemetry-core`, `lsp-core`, `mcp-stdio-core`, `tmux-core`, `claude-code-compat-core`, `skills-loader-core`, `mcp-client-core`, `openclaw-core`, `team-core`, `delegate-core`, `omo-config-core`, `memory-core`, `isolation-core`, `device-service-core` |
 | **Adapters** | 3 (+2 adapter-support) | `omo-opencode` (OpenCode Ultimate edition; the former root `src/`, build entry for the main npm dist) + `omo-codex` (Codex CLI Light edition; live npm alias `lazycodex-ai`, repository/bin identity `lazycodex`; Codex marketplace `sisyphuslabs` / plugin `omo`) + `omo-senpi` (Senpi native TypeScript extension adapter; local-path Pi package under `packages/omo-senpi/plugin`). Adapter-support: `senpi-task` (Senpi-coupled task engine consumed only by `omo-senpi`; not harness-neutral, so not a `*-core` package) + `omo-native` (npm `omo-ai` distribution launcher staging the `omo-senpi` plugin payload). See [`packages/omo-opencode/src/AGENTS.md`](omo-opencode/src/AGENTS.md), [`packages/omo-codex/AGENTS.md`](omo-codex/AGENTS.md), [`packages/omo-senpi/AGENTS.md`](omo-senpi/AGENTS.md), [`packages/senpi-task/AGENTS.md`](senpi-task/AGENTS.md) |
 | **Skills** | 1 | [`shared-skills`](shared-skills/AGENTS.md) (cross-harness SKILL.md bundle shared between OMO and Codex; shipped via root `files` array) |
 | **Web** | 1 | `web` |
+| **Desktop** | 5 | `senpi-desktop-{engine,prelude,protocol,service,tool}`: binary location, model assets, wire types, process client, and tool registration. |
+| **Hosted worker** | 1 | `get-worker` |
 
 ## PLATFORM LAUNCHER PACKAGES (12)
 `oh-my-opencode-darwin-arm64`, `oh-my-opencode-darwin-x64`, `oh-my-opencode-darwin-x64-baseline`, `oh-my-opencode-linux-arm64`, `oh-my-opencode-linux-arm64-musl`, `oh-my-opencode-linux-x64`, `oh-my-opencode-linux-x64-baseline`, `oh-my-opencode-linux-x64-musl`, `oh-my-opencode-linux-x64-musl-baseline`, `oh-my-opencode-windows-x64`, `oh-my-opencode-windows-x64-baseline`, `oh-my-opencode-windows-arm64`.
 
-Each contains only a `bin/oh-my-opencode.js` launcher and a `package.json`. [`script/build-binaries.ts`](../script/build-binaries.ts) writes the same generated Node-compatible launcher payload from `createPlatformLauncherSource()` to all 12 packages; these are not distinct native binaries, and the build does not perform native compilation. Published by the `publish-platform.yml` workflow. `-baseline` and `-musl` suffixes remain package-selection and compatibility metadata. Current generated launcher payloads are identical Node scripts; the suffixes preserve x64 CPU and musl libc compatibility routing, respectively. The `windows-arm64` entry targets Windows-on-ARM through x64 emulation, with the launcher’s Node fallback available when Bun cannot run. Runtime selection happens in `bin/` and `postinstall.mjs`.
+The checkout can contain only `package.json`; `files: ["bin"]` describes the generated publication payload. [`script/build-binaries.ts`](../script/build-binaries.ts) generates the launcher; never infer native compilation from a platform package name. `-baseline` and `-musl` remain compatibility-selection metadata. Runtime selection lives in root `bin/` and `postinstall.mjs`; publishing uses `publish-platform.yml`.
 
 ## MCP PACKAGES
 
@@ -31,11 +33,12 @@ Each contains only a `bin/oh-my-opencode.js` launcher and a `package.json`. [`sc
 | `lsp-daemon/` | Vendored standalone project (`src/`, `test/`, `scripts/`, `biome.json`, `package-lock.json`) | Shared per-user LSP **daemon** over a unix socket (Windows named pipe) + a stdio MCP **proxy** + a tool client, consuming `lsp-core` + `mcp-stdio-core`. Lets multiple Codex sessions share one warm LSP process. Bin `omo-lsp-daemon`. Node-targeted (`npm` + vitest). See [`packages/lsp-daemon/AGENTS.md`](lsp-daemon/AGENTS.md). |
 | [`ast-grep-mcp/`](ast-grep-mcp/AGENTS.md) | Internal package (`src/`, `tsconfig.json`) | stdio MCP `ast_grep` (tools `search`/`rewrite`/`scan`) wrapping the `sg` CLI. Bin `omo-ast-grep`. Bun-targeted, consumes `mcp-stdio-core` + `utils`. Built by `build:ast-grep-mcp` and staged into the Senpi plugin runtime by `build:senpi-plugin`. |
 
-## CORE PACKAGES
+## WHERE TO LOOK
 
 | Package | Layout | Purpose |
 |---------|--------|---------|
 | [`utils/`](utils/AGENTS.md) | `src/`, `tsconfig.json` | Shared utilities: deep-merge, snake-case, frontmatter, file-utils, etc. |
+| `device-service-core/`, `isolation-core/` | `src/`, package-local tests | Authenticated local device-service SDK; harness-neutral filesystem isolation lifecycle. |
 | [`model-core/`](model-core/AGENTS.md) | `src/`, `tsconfig.json` | Model resolution pipeline with ProviderCache dependency injection. |
 | [`prompts-core/`](prompts-core/AGENTS.md) | `src/`, `prompts/`, `test/`, `tsconfig.json` | Harness-neutral markdown prompt loading, model-variant routing, and bundled mode prompts for search/analyze/team/hyperplan. |
 | [`rules-engine/`](rules-engine/AGENTS.md) | `src/`, `tsconfig.json` | Rule discovery + matching engine (renamed from `rules-core`). |
@@ -58,14 +61,13 @@ Each contains only a `bin/oh-my-opencode.js` launcher and a `package.json`. [`sc
 
 ## ADAPTERS
 
-- **`omo-opencode`** is the OpenCode Ultimate edition - the former root `src/`, moved here by the package layering refactor (100% git rename). It is the build entry for the main npm dist (`packages/omo-opencode/src/index.ts` → root `dist/`) and holds all 11 agents, ~55 hooks, native tools, features, and built-in MCPs. Full breakdown in [`packages/omo-opencode/src/AGENTS.md`](omo-opencode/src/AGENTS.md).
+- **`omo-opencode`** is the OpenCode Ultimate edition and main plugin build entry (`packages/omo-opencode/src/index.ts` -> root `dist/`). Its factories, hooks, tools, features, and built-in MCPs live under [`src/`](omo-opencode/src/AGENTS.md).
 - **`omo-codex`** is the Codex CLI Light edition (vendored Codex plugin namespace `omo` + TS installer + telemetry); its live npm alias is `lazycodex-ai`, while `lazycodex` is the repository/bin identity and `code-yeongyu/lazycodex` is the marketplace repo; full layout in [`packages/omo-codex/AGENTS.md`](omo-codex/AGENTS.md) and the publish/deploy pipeline in the root [`AGENTS.md`](../AGENTS.md).
-- **`omo-senpi`** is the native Senpi TypeScript extension adapter. It builds one local-path Pi package at `packages/omo-senpi/plugin` with 18 components, the majors being `ultrawork`, `ulw-execute-continuation`, `ulw-loop`, `comment-checker`, `telemetry`, `lsp`, `task` (the `task` component drives the `@oh-my-opencode/senpi-task` engine and reads `omo.json` via `@oh-my-opencode/omo-config-core`), `memory`, and `init-deep-advisor`. Rules are intentionally excluded because Senpi has builtin rules. V1 is local-path install only; do not describe npm, git, or marketplace distribution unless the implementation changes. Full breakdown in [`packages/omo-senpi/AGENTS.md`](omo-senpi/AGENTS.md).
+- **`omo-senpi`** builds the local-path Pi package at `packages/omo-senpi/plugin`; component composition lives in `src/extension/`. Rules remain Senpi-built-in. V1 is local-path install only; do not describe npm, git, or marketplace distribution unless implementation changes. See [`omo-senpi/AGENTS.md`](omo-senpi/AGENTS.md).
 - **`senpi-task`** is the Senpi-coupled task engine consumed only by `omo-senpi`: the task state machine, record store, in-process + RPC runners, residency/TTL/reconcile lifecycle, completion notifier, steering engine, named-team runtime, and the 7 task + 12 team `ToolDefinition`s. Full breakdown in [`packages/senpi-task/AGENTS.md`](senpi-task/AGENTS.md).
 - **`omo-native`** is the npm `omo-ai` distribution package (BETA channel only): `bin/` launcher that spawns the exact-pinned `@code-yeongyu/senpi` CLI with the staged omo-senpi plugin payload, owns `canonicalAgentDir()` (`~/.omo/agent`), and answers `--version`/self-update under the omo brand. Full breakdown in [`packages/omo-native/AGENTS.md`](omo-native/AGENTS.md).
 
 ## CONVENTIONS
-
 - **No new package without explicit need.** Adding a sibling package complicates publish + CI. Justify the boundary first.
 - **Platform launcher packages** are generated. Do NOT edit their launcher payloads by hand. Modify [`script/build-binaries.ts`](../script/build-binaries.ts).
 - **`lsp-tools-mcp` + `lsp-daemon` are vendored Node-targeted source.** Build them with `bun run build:lsp-tools-mcp` / `bun run build:lsp-daemon` (each runs `npm ci` + `npm run build`) before workflows or package tasks that need their `dist/`.

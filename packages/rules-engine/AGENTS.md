@@ -1,53 +1,51 @@
-# rules-engine — Rule Discovery + Matching (Core)
-
-**Generated:** 2026-06-16 / updated 2026-08-24 (f3642fcda)
+# rules-engine - Discovery and Matching Core
 
 ## OVERVIEW
+Harness-neutral rule discovery and matching shared by OpenCode, Codex, and AGENTS.md injection.
 
-`@oh-my-opencode/rules-engine` (renamed from `rules-core`). Harness-neutral TypeScript package that discovers markdown rule files and matches them against target paths. Consumed by the `rules-injector` hook in `omo-opencode`, the `rules` component in `omo-codex`, and `agents-md-core` for AGENTS.md walk-up discovery.
+Score: 12; distinct domain: two production rule APIs and their source precedence contracts.
+Measured: 53 files, 49 TypeScript files, own package config, src/index.ts boundary;
+254 top-level source declarations and 135 distinct explicit exports; centrality unmeasured.
 
-## KEY FILES
+## WHERE TO LOOK
+| Task | Location | Notes |
+|------|----------|-------|
+| Simple API | src/index.ts | findRuleFiles, shouldApplyRule, findAgentsMdUp |
+| Stateful API | src/engine/index.ts | Package subpath ./engine |
+| Project and user discovery | src/finder.ts | Scope boundaries and observable legacy warnings |
+| AGENTS.md walk-up | src/agents-md.ts | Injection itself belongs to agents-md-core |
+| Simple matching | src/matcher.ts | Picomatch, realpath/content dedupe, cache |
+| Engine lifecycle | src/engine/engine.ts | Static/dynamic loads and session reset |
+| Source selection | src/engine/{finder,sources}.ts | Platform-gated bundled candidates |
+| Recursive scans | src/scanner.ts, src/engine/scanner.ts | Separate discovery caches |
+| YAML frontmatter | src/parser.ts, src/engine/parser-yaml.ts | Rule metadata |
+| Formatted budgets | src/engine/{formatter,truncator}.ts | Per-rule and aggregate limits |
+| Source order and markers | src/constants.ts, src/engine/constants.ts | Numeric priority and distance |
 
-| File | Role |
-|------|------|
-| `src/index.ts` | Barrel: legacy/simple API (`findRuleFiles`, `shouldApplyRule`, `findAgentsMdUp`) |
-| `src/engine/index.ts` | Barrel: comprehensive engine API (`createEngine`, `findRuleCandidates`, `matchRule`) |
-| `src/finder.ts` | `findRuleFiles()` — walks project + user home directories to collect rule candidates |
-| `src/matcher.ts` | `shouldApplyRule()` — picomatch against rule globs/paths with LRU cache |
-| `src/agents-md.ts` | `findAgentsMdUp()` — walk-up discovery for `AGENTS.md` from start dir to root |
-| `src/engine/engine.ts` | `createEngine()` — static + dynamic loading, session state, formatting, truncation |
-| `src/engine/finder.ts` | `findRuleCandidates()` + `findPluginBundledCandidates()` with source filtering |
-| `src/engine/matcher.ts` | `matchRule()` with content-hash dedup |
-| `src/engine/scanner.ts` | `scanRuleFiles()` — recursive directory scanner with caching |
-| `src/engine/formatter.ts` | `formatStaticBlock()` / `formatDynamicBlock()` with per-mode char budgets |
-| `src/engine/truncator.ts` | Char-budget truncation for static/dynamic/post-compact blocks |
-| `src/engine/parser-yaml.ts` | YAML frontmatter parser (largest impl file) |
-| `src/constants.ts` | Rule sources, extensions, source priority map, project root markers |
+## CONVENTIONS
+- Package identity is @oh-my-opencode/rules-engine, formerly rules-core.
+- Both src/ and src/engine/ are live production APIs; maintain their existing boundaries.
+- Simple imports are extensionless; engine relative imports retain explicit .js suffixes.
+- Runtime dependencies remain picomatch and @oh-my-opencode/utils only.
+- Discovery walks from the target toward the project root, then collects user-home sources.
+- Project directories include .omo/rules, .claude/rules, .cursor/rules, and .github/instructions.
+- Single-file sources include .github/copilot-instructions.md and CONTEXT.md.
+- Rule extensions are .md/.mdc; plugin-bundled sources are platform gated.
+- Legacy .sisyphus/rules remains matched with an injected deprecation logger;
+  the rules-sisyphus-deprecated event makes migration to .omo/rules observable.
+- Matching recognizes globs, paths, applyTo, and alwaysApply metadata.
+- Negative patterns exclude paths; alwaysApply bypasses path matching.
+- Lower SOURCE_PRIORITY values come first; closest distance wins within precedence.
+- Engine default static budgets are 12K per rule / 40K total;
+  dynamic budgets are 4K / 10K and post-compact budgets are 3.5K / 4K characters.
+- OpenCode rules-injector and Codex rules consume discovery/matching;
+  agents-md-core consumes AGENTS.md discovery and owns injection behavior.
 
-## FLOW
+## ANTI-PATTERNS
+- Do not normalize the different import styles or collapse the two API trees.
+- Do not silently remove legacy-source warnings while keeping legacy discovery.
+- Do not move adapter-specific injection behavior into this shared package.
 
-Discovery (`finder.ts` / `engine/finder.ts`)
-  Walk UP from cwd toward project root
-    Scan `.omo/rules`, `.claude/rules`, `.cursor/rules`, `.github/instructions`
-    Collect `.md` / `.mdc` files + single-file rules (`.github/copilot-instructions.md`, `CONTEXT.md`)
-  Walk user home: `~/.omo/rules`, `~/.opencode/rules`, `~/.claude/rules`
-  `.sisyphus/rules` (project + user) still matched but emits a deprecation warning (hook: `setSisyphusRuleDeprecationLogger`); migrate to `.omo/rules`
-  Plugin bundled: platform-gated rules under `bundled-rules/`
-
-Matching (`matcher.ts` / `engine/matcher.ts`)
-  Parse YAML frontmatter (globs, paths, applyTo, alwaysApply)
-  Picomatch against target file path (relative + basename)
-  Negative globs (`!`) excluded; `alwaysApply: true` bypasses matching
-
-Ordering
-  Source priority map (`SOURCE_PRIORITY`) + distance from target file
-  Lower priority value = earlier; closest distance wins
-
-## NOTES
-
-- Two APIs: root `src/` (simple functions) and `src/engine/` (stateful engine with truncation budgets). Both consumed in production.
-- ESM split: `src/engine/` uses explicit `.js` relative imports; root `src/` is extensionless. Do not normalize either tree.
-- Deps: `picomatch` + `@oh-my-opencode/utils` only.
-- Default char budgets: static 12K rule / 40K total; dynamic 4K / 10K; post-compact 3.5K / 4K.
-- `AGENTS.md` discovery lives here but injection logic is in `agents-md-core`.
-- Parent: [`packages/AGENTS.md`](../AGENTS.md)
+## COMMANDS
+- bun run --cwd packages/rules-engine typecheck
+- bun run --cwd packages/rules-engine test

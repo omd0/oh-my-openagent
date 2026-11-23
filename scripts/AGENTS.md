@@ -4,6 +4,8 @@
 
 Small Node ESM helpers that are intentionally separate from the primary Bun/TypeScript automation in singular `script/`.
 
+Score: 4; existing guidance retained for the separate packaging/notice-check domain.
+
 ## WHERE TO LOOK
 
 | File | Purpose |

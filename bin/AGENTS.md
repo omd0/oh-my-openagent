@@ -1,5 +1,7 @@
 # bin/ - Published Launcher Shim
 
+**Score:** 4; retained existing guidance for the published multi-alias launch boundary.
+
 ## OVERVIEW
 
 Node-side launch surface for every public CLI alias. The root shim resolves a platform package and spawns its generated `bin/oh-my-opencode.js` launcher payload; it is not the TypeScript CLI implementation.

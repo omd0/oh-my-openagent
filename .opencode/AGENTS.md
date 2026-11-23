@@ -1,49 +1,38 @@
-# .opencode/ — Project-Scope Skills & Commands
-
-**Generated:** 2026-08-24
+# .opencode/ - Project Skills and Commands
 
 ## OVERVIEW
+Project-scoped OpenCode workflows: three repository skills and five slash commands.
 
-Project-scope OpenCode configuration: 4 skills and 5 slash commands committed alongside the source. Picked up by [`packages/omo-opencode/src/features/opencode-skill-loader/`](../packages/omo-opencode/src/features/opencode-skill-loader/) and the slash-command discovery pipeline.
+Score: 0; existing guidance retained for its distinct workflow and authorization domain.
+The migration target is ".agents/"; prefer that scope when resolving renamed tooling.
+This checkout has no hyperplan skill or dependency package in this directory.
 
-**Relationship to `.agents/`:** `.agents/` is the migration target during the `oh-my-opencode` → `oh-my-openagent` rename. It is a SUPERSET of `.opencode/` (mirrors all 4 skills + adds 9 more, mirrors the 5 commands). Both directories load during the transition; consumers should prefer `.agents/`.
-
-## SKILLS (4)
-
-| Skill | Purpose |
-|-------|---------|
-| `work-with-pr/` | Full PR lifecycle skill: worktree → implement → atomic commits → PR → verification loop → merge. |
-| `github-triage/` | Read-only triage of issues + PRs. 1 item = 1 background task. Writes evidence-backed reports. Never takes GitHub actions. |
-| `hyperplan/` | Adversarial multi-agent planning. 5 hostile category members cross-critique, lead synthesizes. |
-| `pre-publish-review/` | Nuclear-grade 12-agent pre-publish release gate. Runs `/get-unpublished-changes`, spawns ultrabrain agents per change, oracle for synthesis. |
-
-Each skill follows the standard layout (`SKILL.md` + optional `scripts/`, `references/`, `assets/`).
-
-## COMMANDS (5 slash commands)
-
-| Command | Purpose |
-|---------|---------|
-| `/get-unpublished-changes` | Compare HEAD with the latest published npm version and list unpublished changes. |
-| `/omomomo` | Easter-egg command — about oh-my-opencode. |
-| `/publish` | Publish via GitHub Actions workflow. Argument: `<patch|minor|major|explicit-semver>`. |
-| `/remove-deadcode` | Remove unused code with LSP-verified safety + atomic commits. |
-| `/security-research` | Run the Team Mode security-research audit with 3 vulnerability hunters and 2 PoC engineers. |
-
-## OTHER CONTENTS
-
-- `background-tasks.json` — Runtime state for active background tasks (gitignored from sensitive content but tracked structurally).
-- `bun.lock`, `package.json`, `node_modules/` — Skill dependencies (some skills install their own packages).
-- `.gitignore` — Local scope ignore patterns.
+## WHERE TO LOOK
+| Task | Location | Notes |
+|------|----------|-------|
+| Follow a PR through verification | `skills/work-with-pr/SKILL.md` | Worktree, implementation, QA, review, merge workflow |
+| Audit issues and PRs | `skills/github-triage/SKILL.md` | Read-only; every claim needs a permalink |
+| Inspect release readiness | `skills/pre-publish-review/SKILL.md` | Parallel pre-publish review gate |
+| Enumerate unpublished changes | `command/get-unpublished-changes.md` | Compare HEAD with the published npm baseline |
+| Trigger release automation | `command/publish.md` | Patch, minor, major, or explicit semver |
+| Remove unreachable code | `command/remove-deadcode.md` | Verify references before removal |
+| Run security research | `command/security-research.md` | Team hunters plus PoC engineers |
+| Explain the project | `command/omomomo.md` | Project introduction command |
+| Inspect background-task state | `background-tasks.json` | Runtime identifiers are sensitive checkout state |
 
 ## CONVENTIONS
-
-- **Skill YAML frontmatter is mandatory.** [`opencode-skill-loader`](../packages/omo-opencode/src/features/opencode-skill-loader/) rejects skills without `name` + `description`.
-- **Project-scope > user-scope.** A skill at `.opencode/skills/X/` overrides `~/.config/opencode/skills/X/` of the same name.
-- **Trigger words** in the skill description determine when OpenCode loads the skill. Be specific.
-- **Commands are user-visible.** Name them with a leading `/` (the loader normalizes filename → command).
+- Skill frontmatter must contain `name` and `description`; descriptions carry trigger words.
+- A project skill overrides a same-named user skill.
+- Command filenames normalize to user-visible slash names.
+- The two internal `.npmignore` files keep repository workflows out of npm payloads.
+- Read the selected workflow before executing its steps; skill mandates differ by operation.
 
 ## ANTI-PATTERNS
-
-- Never duplicate a built-in skill from `packages/skills-loader-core/src/features/builtin-skills/` here without a clear reason.
-- Never commit `background-tasks.json` contents that include session IDs or token secrets.
-- Never write a skill that calls `session.promptAsync` directly — go through `dispatchInternalPrompt` (see root AGENTS.md "Internal message injection is dangerous").
+- Never duplicate a built-in skill from `packages/skills-loader-core/src/features/builtin-skills/` without a clear reason.
+- Never commit session IDs or token secrets from `background-tasks.json`.
+- Never call `session.promptAsync` directly from a skill; use `dispatchInternalPrompt`.
+- Triage must not mutate GitHub state, comment, review, merge, or run checkout/fetch/pull/worktree operations.
+- Publishing must not rerun pre-publish review or fix the working tree mid-release; report a problem and stop.
+- Do not stop the publish workflow after its trigger or draft steps.
+- Dead-code cleanup must not use `git add -A` in the shared checkout.
+- PR verification requires manual QA evidence and monitor subscriptions rather than repeated check polling.

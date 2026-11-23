@@ -1,30 +1,44 @@
-# git-bash-mcp — Windows Git Bash stdio MCP (MCP layer)
+# git-bash-mcp - Windows Git Bash MCP
 
-**Generated:** 2026-06-17
+**Generated:** 2026-11-17. **Score:** 7; existing guidance retained for the Windows execution boundary.
 
 ## OVERVIEW
 
-Internal **Bun-targeted** MCP-layer package (`@oh-my-opencode/git-bash-mcp`, private). Serves the Windows-only `git_bash` tool family for the Codex edition: resolve Git Bash's `bash.exe` and run shell commands through it. Consumes [`mcp-stdio-core`](../mcp-stdio-core/AGENTS.md) for JSON-RPC framing and [`utils`](../utils/AGENTS.md) for the bash resolver. NOT registered by the OpenCode edition (it has tmux-based `interactive_bash`). Package server name `git_bash`.
+Private Codex-facing stdio MCP providing Git Bash discovery, diagnostics, and Windows shell execution.
 
-## TOOLS SERVED
+## WHERE TO LOOK
 
-- `which_bash` — resolve the `bash.exe` path; returns `{found, path, source, candidates}`. Cross-platform.
-- `diagnose` — report whether Git Bash execution is available; returns `{platform, enabled, status, resolution}`. Cross-platform.
-- `run` — **Windows-only.** Run a command via `bash.exe -lc`. Params `command` (required), `timeout` (≤30 min), `workdir`, `description`. Registered only when `platform === "win32" && canRunGitBash()`; otherwise omitted from `tools/list`.
+| Task | Location | Contract |
+|------|----------|----------|
+| Start the executable | `src/cli.ts` | `omo-git-bash mcp` entry |
+| Dispatch MCP methods | `src/mcp.ts` | `handleGitBashMcpRequest`, `runMcpStdioServer` |
+| Run shell commands | `src/runner.ts` | `bash.exe -lc`, captured output, timeout |
+| Resolve bash | `src/git-bash-resolver.ts` | Shim over utils/runtime |
+| Pin tool schemas and protocol | `src/mcp-{schema,protocol-pin}.test.ts` | Consumer-visible envelopes |
+| Pin startup and deadlines | `src/mcp-{startup,timeout}.test.ts` | Server lifetime and inherited timeout |
 
-## KEY FILES
+## CONVENTIONS
 
-| File | Role |
-|------|------|
-| `cli.ts` | Bin `omo-git-bash`. `mcp` subcommand → `runMcpStdioServer()` |
-| `mcp.ts` | `handleGitBashMcpRequest()` + tool registration over `runJsonRpcStdioServer` |
-| `runner.ts` | `runGitBashCommand()` — spawns `bash.exe -lc`, temp-fd output capture, timeout kill |
-| `git-bash-resolver.ts` | re-exports `resolveGitBash(ForCurrentProcess)` from `@oh-my-opencode/utils/runtime` |
+- `which_bash` and `diagnose` can be dispatched cross-platform; `run` appears only with runnable Git Bash on Windows.
+- The stdio entry returns immediately when Git Bash cannot run; direct request-handler tests exercise disabled-host diagnostics.
+- Codex consumes this server; OpenCode uses its interactive terminal path instead.
+- Build tooling and tests use Bun; the emitted CLI targets Node ESM.
+- Shared framing comes from mcp-stdio-core; platform resolution comes from utils/runtime.
+- Runner output uses temporary file descriptors to avoid Windows pipe-buffer deadlocks.
+- Timeout precedence: `OMO_CODEX_GIT_BASH_TIMEOUT_MS`, `OMO_CODEX_EXEC_COMMAND_TIMEOUT_MS`, `CODEX_EXEC_COMMAND_TIMEOUT_MS`, `EXEC_COMMAND_TIMEOUT_MS`.
+- Default timeout is 120,000 ms; accepted values are integers from 1 to 1,800,000 ms.
+- `workdir` and `timeout` are tool-schema fields; the dispatcher also accepts legacy `cwd` and `timeout_ms`.
+- The stdio server enables the parent watchdog and disables idle timeout: Codex does not reconnect an idle-killed user server.
+- Marketplace synchronization stages `dist/` into Codex's git-bash component and rewrites its MCP path.
 
-## NOTES
+## ANTI-PATTERNS
 
-- **Bun-targeted (NOT npm+vitest like `lsp-tools-mcp`/`lsp-daemon`).** Build: `bun build src/cli.ts --outdir dist --target node --format esm` (root: `bun run build:git-bash-mcp`). Tests via `bun:test`. No biome, no `engines.node`.
-- **Codex-only consumption:** `omo-codex/plugin/.mcp.json` declares it; `script/sync-lazycodex-marketplace.ts` copies `dist/` → `<plugin>/components/git-bash-mcp/dist/` and rewrites the `.mcp.json` path. Root `files` ships `packages/git-bash-mcp/dist`.
-- **Temp-fd output capture** (`mkdtempSync` + `openSync` + `rmSync`) avoids Windows pipe-buffer deadlocks.
-- **Timeout env chain:** `OMO_CODEX_GIT_BASH_TIMEOUT_MS` → `OMO_CODEX_EXEC_COMMAND_TIMEOUT_MS` → `CODEX_EXEC_COMMAND_TIMEOUT_MS` → `EXEC_COMMAND_TIMEOUT_MS` → 120_000 default (max 30 min).
-- Parent: [`packages/AGENTS.md`](../AGENTS.md).
+- Never expose `run` on a non-Windows or unresolved-bash host.
+- Do not replace temp-file capture with pipes without preserving the Windows deadlock contract.
+- Do not enable idle shutdown for this Codex server.
+
+## CHECKS
+
+- `bun run build:git-bash-mcp`
+- `bun run --cwd packages/git-bash-mcp test`
+- `bun run --cwd packages/git-bash-mcp typecheck`

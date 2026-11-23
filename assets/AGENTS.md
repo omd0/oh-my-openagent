@@ -1,29 +1,21 @@
 # assets/ - Generated Schemas
 
+**Score:** 0; retained existing guidance for the generated-artifact contract.
+
 ## OVERVIEW
 
 Checked-in JSON artifacts consumed by editors, CLIs, installers, and published packages. This directory is output, not the source of configuration or help contracts.
 
-## STRUCTURE
-
-```
-assets/
-├── oh-my-opencode.schema.json   # OpenCode edition config schema
-├── omo.schema.json              # Harness-neutral omo.json schema
-└── help/                        # Machine-readable CLI help schemas
-    ├── acp.schema.json
-    ├── doctor.schema.json
-    ├── sandbox.schema.json
-    └── status.schema.json
-```
-
-## SOURCE OF TRUTH
+## WHERE TO LOOK
 
 | Artifact | Generator / source |
 |----------|--------------------|
 | `oh-my-opencode.schema.json` | `script/build-schema.ts` + OpenCode Zod schemas under `packages/omo-opencode/src/config/schema/` |
 | `omo.schema.json` | `script/build-omo-schema.ts` + `packages/omo-config-core/` |
 | `help/*.schema.json` | `script/build-help-schemas.ts` + CLI help definitions |
+
+`help/` contains the `acp`, `doctor`, `sandbox`, and `status` machine contracts.
+Some schema generators publish multiple copies; review every output they change.
 
 ## COMMANDS
 

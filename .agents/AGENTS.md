@@ -1,64 +1,47 @@
-# .agents/ — Project-Scope Skills & Commands (Migration Target)
+# .agents/ - Project Guidance Migration Target
 
-**Generated:** 2026-08-24 / f3642fcda
+**Generated:** 2026-11-17. **Score:** 7; retained existing guidance for migration mandates.
 
 ## OVERVIEW
 
-Project-scope skills + slash commands under the new `.agents/` directory name. During the `oh-my-opencode` → `oh-my-openagent` rename transition, this directory is the **target** of the migration from `.opencode/`. It is a strict SUPERSET of `.opencode/` (4 -> 13 skills; 5 commands).
+Project skills and slash commands use this replacement for the legacy `.opencode/` layout during the harness rename.
 
-Loaded alongside `.opencode/` by [`packages/omo-opencode/src/features/opencode-skill-loader/`](../packages/omo-opencode/src/features/opencode-skill-loader/). When both directories declare the same skill or command name, the higher-priority scope wins per the loader's deduplication rules.
+## WHERE TO LOOK
 
-## SKILLS (13, superset of `.opencode/`)
+| Task | Location | Notes |
+|------|----------|-------|
+| Choose a repository workflow | `skills/AGENTS.md` | Skill routers and QA entry points |
+| Edit slash-command instructions | `command/*.md` | Five transition copies |
+| Understand migration timing | `../ROADMAP.md` | Multi-harness refactor |
+| Exclude internal published assets | `skills/.npmignore` | Co-located packaging guard |
+| Locate background-task state | `background-tasks.json` | Runtime state during migration |
 
-| Skill | Also in `.opencode/`? | Purpose |
-|-------|------------------------|---------|
-| `work-with-pr/` | yes | Full PR lifecycle |
-| `github-triage/` | yes | Read-only issue/PR triage with evidence reports |
-| `hyperplan/` | yes | Adversarial multi-agent planning |
-| `pre-publish-review/` | yes | 12-agent pre-publish release gate |
-| `get-unpublished-changes/` | NEW | Skill form of the `/get-unpublished-changes` command |
-| `omomomo/` | NEW | Skill form of the `/omomomo` easter egg |
-| `publish/` | NEW | Skill form of the `/publish` command |
-| `remove-deadcode/` | NEW | Skill form of the `/remove-deadcode` command |
-| `security-research/` | NEW | Team Mode security research audit: 3 vulnerability hunters + 2 PoC engineers |
-| `codex-qa/` | no | Isolated Codex Light QA: real `codex app-server` against an isolated `CODEX_HOME` + local mock model, hook-fired assertions; helper scripts each ship `--self-test` |
-| `opencode-qa/` | no | opencode CLI/TUI/event-stream QA: hook-fired assertions via SSE, session DB inspection, tmux TUI smoke; helper scripts each ship `--self-test` |
-| `senpi-qa/` | no | Live Senpi adapter + task-engine QA against the real `senpi` binary in an isolated `SENPI_CODING_AGENT_DIR`; `scripts/resolve-evidence-dir.mjs` pins every artifact to the gitignored `.omo/evidence/omo-senpi-adapter/<slug>/` (local only; the PR body carries the summary) |
-| `tech-debt-audit/` | no | Technical-debt audit across 9 dimensions via AST-grep/grep; emits `TECH_DEBT_AUDIT.md` |
+## COMMAND COPIES
 
-The 5 "NEW" skills here are skill-format equivalents of slash commands that exist in BOTH `.opencode/command/` and `.agents/command/`. They allow the same instructions to be triggered either by an explicit `/command` invocation OR by skill auto-loading on matching prompts. The `codex-qa`, `opencode-qa`, `senpi-qa`, and `tech-debt-audit` skills are `.agents/`-only with no `.opencode/` counterpart and are not command-forms.
+The transition command set remains duplicated in `.agents/command/` and `.opencode/command/`:
 
-## COMMANDS (5 slash commands)
-
-Identical set to `.opencode/command/`:
 - `/get-unpublished-changes`
 - `/omomomo`
 - `/publish`
 - `/remove-deadcode`
 - `/security-research`
 
-## OTHER CONTENTS
-
-- `background-tasks.json` — Runtime state (parallel to `.opencode/background-tasks.json` during the transition).
-- `skills/.npmignore` — Co-located npm exclusion guard for internal-only assets (`__*`, `.private/`, `.draft/`). Root `.npmignore` does not work for directories listed in `package.json#files` under Bun 1.3.x, so the guard lives next to the published content and `script/package-layout-exclusion.test.ts` enforces it.
-
-## MIGRATION STATUS
-
-| Concern | Plan |
-|---------|------|
-| Why TWO directories? | `.opencode/` is the legacy layout. `.agents/` is the future-proof name after the harness rename. |
-| When does `.opencode/` go away? | After the multi-harness refactor lands and existing users have re-installed. Tracked in [ROADMAP](../ROADMAP.md). |
-| What if both exist with conflicting skills? | The skill-loader dedupes by name. Higher-priority scope wins. The 4 shared skills (`work-with-pr`, `hyperplan`, etc.) are byte-identical between the two dirs today; if they diverge, fix here first. |
-| Where do NEW skills go? | `.agents/` only. Do NOT add new entries to `.opencode/`. |
+These also have skill-format entry points for matching prompts.
+Harness QA and technical-debt auditing are separate skills rather than command forms.
 
 ## CONVENTIONS
 
-- **All NEW skills go in `.agents/`.** `.opencode/` is frozen aside from drift-sync of the 4 shared skills.
-- **Drift between shared skills is a bug.** When you update a shared skill, update both copies in the SAME commit until `.opencode/` is removed.
-- **Slash commands stay duplicated.** Both directories must contain the same `command/*.md` set for the transition window.
+- All new skills belong in `.agents/`; `.opencode/` is frozen except for shared-skill synchronization.
+- Update both copies of a shared skill in the same commit until the legacy directory is removed.
+- Shared migration skills include `work-with-pr`, `github-triage`, `hyperplan`, and `pre-publish-review`.
+- If shared copies drift, fix the `.agents/` source first, then synchronize its legacy copy.
+- Both command directories must keep the same Markdown command set.
+- Scope precedence resolves duplicate names; the directory rename does not itself define precedence.
+- Keep `skills/.npmignore` beside published content: it excludes `__*`, `.private/`, and `.draft/`.
+- `script/package-layout-exclusion.test.ts` covers that packaging guard.
 
 ## ANTI-PATTERNS
 
-- Never add a skill to `.opencode/` that does not also exist in `.agents/`.
-- Never let the 4 shared skills drift. CI should eventually enforce byte equality; for now, manual diligence.
-- Never delete `.opencode/` until the multi-harness refactor lands.
+- Never add a legacy-only skill under `.opencode/`.
+- Never let shared migration skills diverge.
+- Never delete `.opencode/` before the multi-harness refactor and user reinstall transition are complete.

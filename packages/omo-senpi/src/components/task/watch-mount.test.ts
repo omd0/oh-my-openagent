@@ -108,6 +108,47 @@ function stubService(): ThreadService {
 }
 
 describe("mountSubagentWatch", () => {
+  it("#given a workflow and its worker #when Enter opens watch and submits a draft #then steering reaches the worker", async () => {
+    const worker = {
+      path: "/root/workflow/run/worker",
+      parent: "/root/workflow/run",
+      owner: "qa",
+      type: "quick",
+      state: "running",
+      task: "Review output",
+      status: "running",
+      createdAt: 0,
+      updatedAt: 0,
+    } as const
+    const sends: { path: string; message: string | undefined }[] = []
+    const service: ThreadService = {
+      ...stubService(),
+      list: () => [{ ...worker, path: worker.parent, parent: "/root", type: "workflow" }, worker],
+      steer: async (path, message) => {
+        sends.push({ path, message })
+        return worker
+      },
+    }
+    const tui = testTui()
+    const ui: WatchUi = {
+      notify: (message) => { throw new Error(message) },
+      custom: async (factory) => {
+        const surface = factory(tui, TEST_THEME, {}, () => {}) as { handleInput(data: string): void }
+        surface.handleInput("\r")
+        for (const key of "check again") surface.handleInput(key)
+        surface.handleInput("\r")
+        surface.handleInput(CTRL_Q)
+      },
+    }
+
+    try {
+      await mountSubagentWatch({ current: undefined }, { ui, service, parentId: "session-a", currentParentId: () => "session-a" })
+      expect(sends).toEqual([{ path: worker.path, message: "check again" }])
+    } finally {
+      tui.stop()
+    }
+  })
+
   it("#given a mount #when the overlay opens #then it requests a fullscreen overlay and releases the holder afterwards", async () => {
     // given
     const holder: WatchHolder = { current: undefined }

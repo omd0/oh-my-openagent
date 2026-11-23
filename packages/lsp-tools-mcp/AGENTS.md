@@ -1,44 +1,44 @@
-# lsp-tools-mcp -- LSP Tools stdio MCP (MCP layer)
-
-**Generated:** 2026-07-17 / 7d664b96b
+# lsp-tools-mcp - LSP stdio Facade
 
 ## OVERVIEW
+Node-targeted @code-yeongyu/lsp-tools-mcp wraps lsp-core with a standalone omo-lsp CLI and compatibility re-exports.
 
-Vendored, Node-targeted MCP-layer package (`@code-yeongyu/lsp-tools-mcp`). Serves LSP tools via stdio MCP, consuming [`lsp-core`](../lsp-core/AGENTS.md) for tool definitions + LSP runtime and [`mcp-stdio-core`](../mcp-stdio-core) for JSON-RPC framing. Registered as tier-1 MCP `lsp` in [`packages/omo-opencode/src/mcp/`](../omo-opencode/src/mcp/AGENTS.md). Used directly by the OpenCode edition and consumed by [`lsp-daemon`](../lsp-daemon/AGENTS.md) for the Codex edition.
+Score: 8; distinct domain: vendored CLI packaging and its independent Node test/tooling boundary.
+Measured: 70 tracked non-guidance files, 52 code files, package config and 38 AST declarations; centrality unavailable.
 
-## TOOLS SERVED
+## WHERE TO LOOK
+| Task | Location | Notes |
+|------|----------|-------|
+| CLI dispatch and shutdown | src/cli.ts | Default command is mcp; always disposes the manager |
+| MCP request/server surface | src/mcp.ts | Re-exports lsp-core/mcp |
+| Tool definitions and dispatch | src/tools.ts | Re-exports lsp-core/tools |
+| Per-request workspace context | src/request-context.ts | Re-exports lsp-core/request-context |
+| Compatibility manager entry | src/lsp/manager.ts | Re-exports lsp-core/lsp/manager |
+| Prepare extracted-core links | scripts/ensure-core-links.mjs | Runs before the build |
+| Package and CLI contract | test/package-smoke.test.ts | Pins npm identity, bin and shipped files |
+| Runtime/security regressions | test/ | Vitest suites exercising facade imports |
+| Standalone CI and release | .github/workflows/ | Vendored package workflows |
 
-- `lsp_diagnostics`
-- `lsp_goto_definition`
-- `lsp_find_references`
-- `lsp_symbols`
-- `lsp_prepare_rename`
-- `lsp_rename`
-- `lsp_status`
-- `lsp_install_decision`
+## CONVENTIONS
+- OpenCode registers this package as tier-1 MCP lsp; lsp-daemon consumes its compatibility surface for Codex.
+- Runtime behavior belongs in lsp-core. src has no index.ts; keep its path-level facade modules available.
+- Existing aliases include diagnostics, goto_definition, find_references, symbols, prepare_rename, rename, status and install_decision with the lsp_ prefix; the core registry is authoritative.
+- Source uses Node ESM .js import suffixes, tabs, double quotes, and semicolons.
+- npm@11.16.0 owns package tooling; Node >=20 is required. The build uses Bun to bundle Node ESM after declaration emission.
+- Vitest discovers test/**/*.test.ts under Node with the threads pool; root Bun tests do not replace that run.
+- Project config is .codex/lsp-client.json; user config is ~/.codex/lsp-client.json, with LSP_TOOLS_MCP_PROJECT_CONFIG and LSP_TOOLS_MCP_USER_CONFIG overrides.
+- ensure-core-links creates the missing mcp-stdio-core link beneath lsp-core and preserves an existing path.
 
-## KEY FILES
-
-| File | Role |
-|------|------|
-| `cli.ts` | Bin `omo-lsp`. `mcp` subcommand → `runMcpStdioServer()` |
-| `mcp.ts` | Re-exports `@oh-my-opencode/lsp-core/mcp` (stdio MCP server + JSON-RPC handler) |
-| `tools.ts` | Re-exports `@oh-my-opencode/lsp-core/tools` (tool definitions + runtime dispatch) |
-| `request-context.ts` | Re-exports `@oh-my-opencode/lsp-core/request-context` |
-| `lsp/manager.ts` | Re-exports `@oh-my-opencode/lsp-core/lsp/manager` |
-
-## NOTES
-
-- **Node + npm + vitest + biome, NOT Bun.** Built with `npm ci` + `npm run build` (triggered from root via `bun run build:lsp-tools-mcp`). `engines.node >= 20`. The build itself bundles with `bun build`; tests/tooling stay npm/Vitest/Biome.
-- **All logic lives in `lsp-core`.** This package is a thin vendored shim that re-exports the core and adds a standalone CLI entry. Most `src/lsp/*.ts` are one-line re-export shims.
-- **`ensure-core-links.mjs`** prepares local `lsp-core` links before build — run via the npm scripts, not manually.
-- **Config:** `.codex/lsp-client.json` (project) and `~/.codex/lsp-client.json` (user), overridable via `LSP_TOOLS_MCP_PROJECT_CONFIG` and `LSP_TOOLS_MCP_USER_CONFIG`.
+## ANTI-PATTERNS
+- Do not put an independent LSP engine in the re-export files; change the extracted core.
+- Do not bypass the package build script when preparing dist: its linking and declaration steps are required.
+- Do not report npm run check as test coverage; it runs typecheck, formatting, and build only.
 
 ## COMMANDS
-
+Run from this package directory:
 ```bash
-# from packages/lsp-tools-mcp/
 npm ci
-npm run check        # typecheck + biome + build (what CI runs)
-npm test             # vitest
+npm run check
+npm test
 ```
+Root build entry: bun run build:lsp-tools-mcp.

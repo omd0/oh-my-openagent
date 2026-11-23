@@ -1,8 +1,8 @@
 # scripts/ -- OpenGateway Catalog Generator
 
-**Generated:** 2026-08-24 / f3642fcda
+**Generated:** 2026-11-17
 
-Earned its file: score 8, distinct domain. Only code in this package outside `src/`; nothing in the plugin bundle imports it. Previously absent from the whole AGENTS.md hierarchy.
+Score 2; retained existing guidance for the standalone catalog generator and its model-policy mandates.
 
 ## OVERVIEW
 

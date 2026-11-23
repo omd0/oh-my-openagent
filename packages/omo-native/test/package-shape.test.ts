@@ -24,8 +24,12 @@ const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
 describe("omo-ai published package shape", () => {
   describe("#given the omo-native package manifest", () => {
     describe("#when the bin map is audited", () => {
-      test("#then it exposes exactly the omo and pi commands pointing at bin/omo.js", () => {
-        expect(manifest.bin).toEqual({ omo: "bin/omo.js", pi: "bin/omo.js" })
+      test("#then it exposes the omo, pi, and oh-my-openagent commands pointing at bin/omo.js", () => {
+        expect(manifest.bin).toEqual({
+          omo: "bin/omo.js",
+          pi: "bin/omo.js",
+          "oh-my-openagent": "bin/omo.js",
+        })
       })
     })
 

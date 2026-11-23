@@ -1,125 +1,63 @@
-# memory-core - Harness-Neutral Agent Memory Engine
+# memory-core - Harness-Neutral Memory Engine
+
+**Generated:** 2026-11-17. **Score:** 13; distinct domain: transactional memory shared by harness adapters.
 
 ## OVERVIEW
 
-`@oh-my-opencode/memory-core` owns the shared memory domain used by harness
-adapters: a git-backed markdown MemFS, atomic memory tools, prompt compilation,
-reflection scheduling, transcript search, synchronization, and seed content.
-The public API is the barrel at `src/index.ts`.
+Git-backed Markdown MemFS, memory tools, committed-state compilation, reflection, search, synchronization, and seeds.
 
-## ANATOMY
+## WHERE TO LOOK
 
-| Directory | Responsibility |
-|-----------|----------------|
-| `src/git/` | Git command boundary, clean-tree checks, commits, merges, remotes, and typed git errors. A stranded git lock is reclaimed only with proven-dead ownership (`repo-lock-sweep.ts`); a kept one surfaces `StrandedGitLockError` with the way out, `inspectStrandedGitLock` / `unlockStrandedGitLock` (`repo-lock-unlock.ts`: refuse on any visible live holder, remove one confirmed lock after a fresh re-check). |
-| `src/identity/` | Memory identity resolution and the `OMO_MEMORY_HOME` directory layout. `resolveAutoIdentity(cwd, env, mode, probe?)` is the one entry point for the auto identity; its opt-in `"git"` mode (`git-layout.ts`) maps a linked worktree's cwd onto the main working tree by reading the `.git` pointer, `commondir`, the admin `gitdir` back-pointer and `core.worktree`/`core.bare` (no `git` spawn), and any unreadable, forged or ambiguous layout keeps the path-derived id. |
-| `src/locks/` | Cross-process locks for memory writes, reflection scheduling, and transcript state, plus the machine-wide `recall-wake` counting lease (`recall-wake.slot-<n>.lock` per slot, FIFO `recall-wake.tickets/`, default 2 slots, proof-based stale recovery for slots and tickets alike, bounded wait ending in `RecallWakeBusyError`). |
-| `src/memfs/` | Memory-path validation, markdown frontmatter parsing, and hook-script installation. |
-| `src/tools/` | `memory` and `memory_apply_patch` operations, patch parsing, typed tool errors, and auto-commit behavior. `leaked-arguments.ts` splits an argument that leaked into its sibling (`summary</description>\n<parameter name="file_text">body`) back apart before `runMemoryTool` validates. |
-| `src/journal/` | Per-conversation transcript cursors, reflection snapshots, and durable journal state. |
-| `src/facts/` | Durable fact pipeline: queue + cursor watermarks, failure backoff/store, payload capping, person routing, recovery, mutation planning. |
-| `src/people/` | People-card grammar: parse/serialize, slug rules, reserved slugs, observations. |
-| `src/soul/` | Soul-file paths and identity-scoped soul-notice watermark consumption. |
-| `src/agreements/` | The working-agreement ledger at `system/agreements.md` (#10780): one line per agreement with `id`/`by`/`n`/`since`/`last`/`status` in a trailing comment, id = sha256 of the normalized text (first 10 hex). `mutate.ts` counts repeat corrections, flags `needs-human` at the threshold, and at the cap evicts only the oldest never-reaffirmed, unflagged agent item (reported as an `AgreementEvent`, named in the facts commit as `Omo-Agreement-Evicted`) or refuses the new one - it never merges distinct rules; `guard.ts` refuses automation edits to `by: human` items; `render.ts` builds the compiled `<agreements>` section; `notice-watermark.ts` announces each newly flagged item once per identity. |
-| `src/reflection/` | Trigger evaluation, run reservation, worktree execution, completion validation, merge outcomes, the orphan sweep that reclaims worktrees/branches no live run owns, and the park policy that stops automatic reflection after repeated failures (one half-open probe per interval). |
-| `src/compile/` | Compile committed memory revisions into marked system-prompt blocks and cache them by template hash. |
-| `src/search/` | Query parsing, transcript providers, and ranked memory/session search. |
-| `src/sync/` | Remote mirror synchronization and secret redaction. |
-| `src/reminders/` | Reflection and memory-maintenance reminder generation. |
-| `src/seeds/` | Default memory blocks and first-run repository seeding. |
-| `src/concurrency/` | Subprocess fixtures for lock and multi-writer tests; not a public runtime module. |
+| Task | Location | Contract |
+|------|----------|----------|
+| Navigate source domains | `src/AGENTS.md`, `src/index.ts` | Source map and public barrel |
+| Git transaction and recovery | `src/git/` | Clean checks, commits, merges, remotes, typed failures |
+| Identity and layout | `src/identity/` | `OMO_MEMORY_HOME`, auto identity, linked worktrees |
+| Lock ownership and capacity | `src/locks/` | Write/scheduler/transcript locks and recall-wake leases |
+| File grammar and hooks | `src/memfs/` | Validation, canonical rendering, staged-blob checks |
+| Atomic tool writes | `src/tools/` | `runMemoryTool`, `runMemoryApplyPatch`, leaked-argument repair |
+| Facts and journal state | `src/facts/`, `src/journal/` | Durable queue, cursors, snapshots, mutation planning |
+| People and soul | `src/people/`, `src/soul/` | Card grammar and identity-scoped notice watermarks |
+| Working agreements | `src/agreements/` | Ledger parsing, human ownership, counters, projection |
+| Reflection lifecycle | `src/reflection/` | Reservations, worktrees, validation, unowned branch/worktree sweep; repeated-failure park with one half-open probe per interval |
+| Prompt projection | `src/compile/` | `compileMemoryBlock`, revision-targeted compilation, template-hash caching |
+| Retrieval and upkeep | `src/search/`, `src/reminders/`, `src/seeds/` | Search, reminders, first-run content |
+| Remote mirror | `src/sync/` | Synchronization and secret redaction |
 
-## CORE INVARIANTS
+## CONVENTIONS
 
-- **Stay harness-neutral.** Production code and package dependencies must not
-  import Senpi, Pi, OpenCode adapters, or other harness-specific packages.
-  `src/harness-neutrality.test.ts` enforces this boundary.
-- **Treat the memory repository as transactional state.** Write tools acquire
-  the `memory-write` lock, require a clean repository, validate paths, apply one
-  operation, and commit only the affected paths. Do not bypass
-  `GitMemoryRepo`, lock domains, or the tool entry points.
-- **Compile from committed state.** Prompt compilation may target `HEAD` or an
-  explicit revision. Uncommitted working-tree content is not authoritative
-  memory.
-- **Preserve markdown contracts.** Memory files require YAML frontmatter with a
-  non-empty `description`; `read_only: "true"` blocks mutation. Keep UTF-8,
-  normalized repository-relative paths, and LF output.
-- **Frontmatter is strict YAML, one grammar everywhere.** `renderMemoryFile`
-  is the only writer: it quotes any scalar that the `yaml` package would not
-  read back verbatim and re-parses its own header. The reader decodes quoted
-  scalars, keeps non-contract keys (`extra`) so SKILL.md `name`/`version`
-  survive edits, and only falls back to the legacy first-colon grammar for
-  pre-existing files. `describeFrontmatterViolation` is the shared gate for
-  the pre-commit hook rules, `validateCompletion`, and
-  `normalizeMemoryFrontmatter` (one-time legacy repair keyed by a marker in
-  the common git dir). Never emit an unquoted `description:` by hand.
-- **Keep reflection transitions deterministic.** Manual triggers outrank
-  compaction, which outranks step-count triggers. Only one active run and one
-  merged pending reservation may exist.
-- **Keep locks domain-specific.** Use `memory-write`,
-  `reflection-scheduler`, or the transcript-specific lock. Do not replace them
-  with one global lock or add timing-based tests.
-- **Redact before external synchronization.** Remote mirror output must pass
-  through the sync redaction layer; never copy secret-bearing raw logs or
-  configuration into committed memory.
-- **Facts state is durable and fail-closed.** Queue/cursor/consumed writes
-  publish atomically (`.tmp` + rename, mode `0o600`) under an identity-scoped
-  lock; malformed JSON parses to empty, never blocks. Enqueue/consumed
-  watermarks NEVER regress, and ordering follows canonical journal position /
-  snapshot boundary — never lexical message-ID comparison.
-- **Agreements the person wrote are immutable to automation.** Only the
-  adapter's `/agreements` command (`commitMemoryWrite` with `writer:
-  "human-command"`) may create, reword, ack, or drop a `by: human` item. The
-  memory tools and `memory_apply_patch` refuse such edits
-  (`tools/agreements-write-guard.ts`), reflection/dream completion fails on
-  any change to `system/agreements.md`, a move or delete included (the check
-  diffs with `--no-renames`), and the facts lane only counts them. Automation
-  also may not remove a counted agent item (`n > 0`), so a count cannot be
-  reset by delete-and-re-add. With `agreements.enabled: false` the existing
-  ledger is still projected, so the person's own items stay visible.
-- **Behavioral patterns are NEVER stored in people cards.** Card lines are
-  limited to the `IDENTITY` / `ATTRIBUTE` / `RELATIONSHIP` / `INSTRUCTION`
-  prefixes with bounded metadata.
-
-## PUBLIC SURFACES
-
-- `runMemoryTool()` implements `create`, `str_replace`, `insert`, `delete`,
-  `rename`, and `update_description`.
-- `runMemoryApplyPatch()` applies multi-file Codex-style patches inside the
-  memory repository.
-- `GitMemoryRepo` owns repository initialization, clean checks, commits,
-  revisions, merge worktrees, and remote detection.
-- `evaluateTransitions()`, `reserveTransition()`, and
-  `completeTransition()` form the pure reflection state machine.
-- `compileMemoryBlock()` and `compileMemoryBlockAtRevision()` render the
-  committed memory projection injected into a harness prompt.
-- `FactsQueue`, `applyFactsBatch()`, `planFactsMutation()`, and
-  `consumeSoulNoticeDelta()` drive the facts/soul lifecycle from
-  `src/facts/` and `src/soul/`.
-
-## CONSUMERS
-
-Harness adapters provide identity, lifecycle events, tool registration, and
-sync orchestration; the Senpi adapter lives in `packages/omo-senpi/src/components/memory/`.
-Keep adapter-specific behavior there, never imported back into this package.
-
-## QA
-
-```bash
-bun test --timeout 20000 packages/memory-core/src/
-bun run --cwd packages/memory-core typecheck
-```
-
-For a focused change, run the nearest co-located `*.test.ts` first, then the
-package suite. Concurrency tests must await exact state or process events with
-bounded timeouts; never add fixed sleeps or retry loops.
+- Adapters supply identity, events, registration, and sync orchestration; Senpi wiring stays in `omo-senpi/src/components/memory/`.
+- Production imports and dependencies stay harness-neutral; `src/harness-neutrality.test.ts` enforces the boundary.
+- Writes acquire `memory-write`, require a clean repository, validate paths, apply one operation, and commit only affected paths through `GitMemoryRepo`.
+- Compilation reads HEAD or an explicit revision; dirty worktree content is not authoritative memory.
+- Files require non-empty YAML `description`, UTF-8, normalized repository-relative paths, and LF output; `read_only: "true"` blocks mutation.
+- `renderMemoryFile` is the only writer: quote ambiguous scalars, reparse headers, preserve extra keys, and retain legacy reading only for pre-existing files.
+- `describeFrontmatterViolation` is shared by hooks, completion, and one-time normalization; normalization's marker lives in the common git directory.
+- Reflection priority is manual, compaction, then step-count; allow one active run and one merged pending reservation.
+- Preserve typed lock domains: memory-write, reflection-scheduler, and transcript-specific locks; never collapse them into a global lock.
+- Recall-wake uses `recall-wake.slot-<n>.lock` (default two slots), FIFO `recall-wake.tickets/`, proof-based recovery of slots/tickets, bounded waits, and `RecallWakeBusyError`.
+- Reclaim stranded git locks only with proven-dead ownership and fresh holder checks; keep uncertain locks as `StrandedGitLockError` and use inspect/unlock APIs for explicit recovery.
+- `resolveAutoIdentity(cwd, env, mode, probe?)` owns auto identity; opt-in git mode maps to the main worktree through `.git`, `commondir`, admin `gitdir`, and `core.worktree`/`core.bare` without spawning git, retaining path identity for unreadable, forged, or ambiguous layouts.
+- Redact all external mirrors before synchronization; never commit secret-bearing raw logs or configuration.
+- Facts queue/cursor/consumed records publish atomically with mode 0600 under identity locks; malformed JSON becomes empty state and never blocks.
+- Facts enqueue/consumed watermarks never regress; order uses canonical journal position/snapshot boundaries, never lexical message IDs.
+- Agreement lines carry id/by/n/since/last/status metadata; IDs are the first ten hex digits of normalized-text SHA-256.
+- Repeat corrections increment counts and flag needs-human; at capacity evict only the oldest never-reaffirmed, unflagged agent item, recording an `AgreementEvent` and `Omo-Agreement-Evicted` commit trailer, or refuse admission; never merge distinct rules. The notice watermark announces newly flagged items once per identity.
+- Only `/agreements` via `commitMemoryWrite` with `writer: "human-command"` may create, reword, acknowledge, or drop human items.
+- Memory tools refuse human-ledger changes; reflection/dream reject every ledger change, including move/delete via a no-renames diff; facts only count human items.
+- Automation cannot remove counted agent items or lower counts; delete-and-re-add cannot reset history. Disabling agreements still projects the existing ledger.
+- People-card lines allow only IDENTITY/ATTRIBUTE/RELATIONSHIP/INSTRUCTION with bounded metadata; never store behavioral patterns there.
+- `evaluateTransitions`, `reserveTransition`, and `completeTransition` form the pure reflection state machine.
+- `FactsQueue`, `applyFactsBatch`, `planFactsMutation`, and `consumeSoulNoticeDelta` drive the facts/soul lifecycle.
 
 ## ANTI-PATTERNS
 
-- Importing a harness package into `memory-core`.
-- Writing directly to memory markdown without path validation, frontmatter
-  parsing, locking, and an atomic git commit.
-- Reading the dirty worktree as compiled memory.
-- Mutating `read_only` blocks or accepting non-UTF-8 memory files.
-- Swallowing git, lock, merge, or reflection failures.
-- Testing cross-process behavior with timing luck.
+- Never import a harness package, bypass GitMemoryRepo/tool validation/typed locks, or compile dirty worktree content.
+- Never hand-emit an unquoted `description:`, mutate read-only blocks, or accept non-UTF-8 files.
+- Never swallow git, lock, merge, or reflection failures.
+- Never use fixed sleeps or retry loops to test cross-process behavior; await exact state/process events with bounded timeouts.
+
+## CHECKS
+
+- Run nearest co-located tests first, then `bun test --timeout 20000 packages/memory-core/src/`.
+- `bun run --cwd packages/memory-core typecheck`
