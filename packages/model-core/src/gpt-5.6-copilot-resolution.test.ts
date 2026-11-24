@@ -4,6 +4,7 @@ import { AGENT_MODEL_REQUIREMENTS, CATEGORY_MODEL_REQUIREMENTS } from "./model-r
 import { resolveModelWithFallback } from "./model-resolver"
 
 describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
+<<<<<<< HEAD
   test("ultrabrain and deep-high prefer Copilot Astra when available", () => {
     const availableModels = new Set(["github-copilot/gpt-6.2-astra", "github-copilot/gpt-5.6-sol"])
     expect(
@@ -22,6 +23,8 @@ describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
     ).toMatchObject({ model: "github-copilot/gpt-6.2-astra", variant: "high" })
   })
 
+=======
+>>>>>>> origin/dev
   test("unspecified-high never borrows Copilot Astra: it takes the Copilot Opus 5.5 rung, and without it falls to the system default", () => {
     const withOpus = new Set(["github-copilot/gpt-6.2-astra", "github-copilot/claude-opus-5-5"])
     expect(
@@ -42,30 +45,19 @@ describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
     ).toMatchObject({ model: "system/default" })
   })
 
-  test("ultrabrain falls back to Copilot GPT-5.6 Sol when Astra is absent and deep-low runs it at medium, while deep-high never uses it", () => {
-    const availableModels = new Set(["github-copilot/gpt-5.6-sol"])
-    expect(
-      resolveModelWithFallback({
-        fallbackChain: CATEGORY_MODEL_REQUIREMENTS.ultrabrain.fallbackChain,
-        availableModels,
-        systemDefaultModel: "system/default",
-      }),
-    ).toMatchObject({ model: "github-copilot/gpt-5.6-sol", variant: "max" })
-    expect(
-      resolveModelWithFallback({
-        fallbackChain: CATEGORY_MODEL_REQUIREMENTS["deep-low"].fallbackChain,
-        availableModels,
-        systemDefaultModel: "system/default",
-      }),
-    ).toMatchObject({ model: "github-copilot/gpt-5.6-sol", variant: "medium" })
-    expect(
-      resolveModelWithFallback({
-        fallbackChain: CATEGORY_MODEL_REQUIREMENTS["deep-high"].fallbackChain,
-        availableModels,
-        systemDefaultModel: "system/default",
-      }),
-    ).toMatchObject({ model: "system/default" })
-  })
+  test.each(["ultrabrain", "deep-high", "deep-low"])(
+    "%s takes no Copilot GPT rung, because Copilot does not serve its exact GPT-6.2 model",
+    (category) => {
+      const availableModels = new Set(["github-copilot/gpt-6-astra", "github-copilot/gpt-5.6-sol"])
+      expect(
+        resolveModelWithFallback({
+          fallbackChain: CATEGORY_MODEL_REQUIREMENTS[category].fallbackChain,
+          availableModels,
+          systemDefaultModel: "system/default",
+        }),
+      ).toMatchObject({ model: "system/default" })
+    },
+  )
   const selectionCases = [
     {
       name: "hephaestus",
@@ -80,6 +72,7 @@ describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
       expectedVariant: "high",
     },
     {
+<<<<<<< HEAD
       name: "ultrabrain",
       requirement: CATEGORY_MODEL_REQUIREMENTS.ultrabrain,
       expectedModel: "github-copilot/gpt-6.2-astra",
@@ -98,6 +91,8 @@ describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
       expectedVariant: "high",
     },
     {
+=======
+>>>>>>> origin/dev
       name: "unspecified-low",
       requirement: CATEGORY_MODEL_REQUIREMENTS["unspecified-low"],
       expectedModel: "github-copilot/gpt-5.6-sol",
@@ -164,6 +159,7 @@ describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
     })
   })
 
+<<<<<<< HEAD
   test("Copilot keeps the GPT-6 Astra max tier because no Copilot cap applies", () => {
     const entries = CATEGORY_MODEL_REQUIREMENTS.ultrabrain.fallbackChain.filter(
       ({ model, providers }) => model === "gpt-6.2-astra" && providers.includes("github-copilot"),
@@ -171,6 +167,8 @@ describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
     expect(entries).toEqual([{ providers: ["github-copilot"], model: "gpt-6.2-astra", variant: "max" }])
   })
 
+=======
+>>>>>>> origin/dev
   test("Copilot is never included in a GPT-5.6 xhigh rung", () => {
     // given
     const requirements = [...Object.values(AGENT_MODEL_REQUIREMENTS), ...Object.values(CATEGORY_MODEL_REQUIREMENTS)]

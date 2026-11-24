@@ -71,7 +71,11 @@ Co-located per script (`build-binaries.test.ts`, `stats.test.ts`, `sync-lazycode
 
 ## NOTE
 
+<<<<<<< HEAD
 CI uses plain `bun test`; `test:fast` is the optional partitioned runner described above.
 
 ## ANTI-PATTERNS
 - Never hand-edit the model-capabilities artifact; regenerate with `build-model-capabilities.ts`. Changelog entries use fragments, never direct edits to `packages/*/changes.md`.
+=======
+CI runs each root test group as one serial `bun test` process with no isolation runner. On Linux the remainder and `packages/omo-senpi` are split across jobs with `bun test --shard` balanced by `.github/ci-test-timings.json`; omo-opencode is never file-sharded (global zauc mocks).
+>>>>>>> origin/dev

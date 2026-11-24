@@ -3,17 +3,28 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
 export const FALLBACK_CATALOG = {
+<<<<<<< HEAD
   version: "fallback.gpt-6.2-astra-1050k-high",
   current: {
     model: "gpt-6.2-astra",
     model_context_window: 1_050_000,
+=======
+  version: "fallback.gpt-6.2-astra-600k-high",
+  current: {
+    model: "gpt-6.2-astra",
+    model_context_window: 600_000,
+>>>>>>> origin/dev
     model_reasoning_effort: "high",
     plan_mode_reasoning_effort: "xhigh",
   },
   roles: {
     default: {
       model: "gpt-6.2-astra",
+<<<<<<< HEAD
       model_context_window: 1_050_000,
+=======
+      model_context_window: 600_000,
+>>>>>>> origin/dev
       model_reasoning_effort: "high",
       plan_mode_reasoning_effort: "xhigh",
     },
@@ -50,7 +61,11 @@ export const FALLBACK_CATALOG = {
       },
     },
     {
+<<<<<<< HEAD
       version: "legacy.2026-09-08.gpt-6-astra-600k-high",
+=======
+      version: "legacy.gpt-6-astra-600k-high",
+>>>>>>> origin/dev
       match: {
         model: "gpt-6-astra",
         model_context_window: 600_000,

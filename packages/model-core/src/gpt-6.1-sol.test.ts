@@ -1,18 +1,9 @@
 import { describe, expect, test } from "bun:test"
 
 import { getBundledModelCapabilitiesSnapshot, getModelCapabilities } from "./model-capabilities"
-import { CATEGORY_MODEL_REQUIREMENTS } from "./model-requirements"
-import { resolveModelWithFallback } from "./model-resolver"
 import { resolveCompatibleModelSettings } from "./model-settings-compatibility"
 
 const bundledSnapshot = getBundledModelCapabilitiesSnapshot({ generatedAt: "test", sourceUrl: "test", models: {} })
-
-const deepLow = (models: readonly string[]) =>
-  resolveModelWithFallback({
-    fallbackChain: CATEGORY_MODEL_REQUIREMENTS["deep-low"].fallbackChain,
-    availableModels: new Set(models),
-    systemDefaultModel: "system/default",
-  })
 
 describe("GPT-6.1 Sol capabilities", () => {
   test.each(["gpt-6.1-sol", "gpt-6.1-sol-fast"])("%s offers low..max and no none or minimal", (modelID) => {
@@ -43,6 +34,7 @@ describe("GPT-6.1 Sol capabilities", () => {
     ).toBe("none")
   })
 })
+<<<<<<< HEAD
 
 describe("deep-low on GPT-6.2 Sol", () => {
   test("resolves gpt-6.2-sol at medium when the registry serves both 6.2 Sol and 5.6 Sol", () => {
@@ -66,3 +58,5 @@ describe("deep-low on GPT-6.2 Sol", () => {
     })
   })
 })
+=======
+>>>>>>> origin/dev

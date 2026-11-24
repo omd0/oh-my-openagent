@@ -12,7 +12,11 @@
 |------|-------|----------|
 | **Platform launcher packages** | 12 | One per OS/architecture/variant. Package metadata selects a generated `bin/` payload at install time. |
 | **MCP packages** | 4 | `lsp-tools-mcp`, `git-bash-mcp`, `lsp-daemon`, `ast-grep-mcp` |
+<<<<<<< HEAD
 | **Core packages** | 22 | `utils`, `model-core`, `prompts-core`, `rules-engine`, `agents-md-core`, `comment-checker-core`, `hashline-core`, `boulder-state`, `telemetry-core`, `lsp-core`, `mcp-stdio-core`, `tmux-core`, `claude-code-compat-core`, `skills-loader-core`, `mcp-client-core`, `openclaw-core`, `team-core`, `delegate-core`, `omo-config-core`, `memory-core`, `isolation-core`, `device-service-core` |
+=======
+| **Core packages** | 21 | `utils`, `model-core`, `prompts-core`, `rules-engine` (was `rules-core`), `agents-md-core`, `comment-checker-core`, `hashline-core`, `boulder-state`, `telemetry-core`, `lsp-core`, `mcp-stdio-core`, `tmux-core`, `claude-code-compat-core`, `skills-loader-core`, `mcp-client-core`, `openclaw-core`, `team-core`, `delegate-core`, `omo-config-core`, `memory-core`, `thread-address-core` |
+>>>>>>> origin/dev
 | **Adapters** | 3 (+2 adapter-support) | `omo-opencode` (OpenCode Ultimate edition; the former root `src/`, build entry for the main npm dist) + `omo-codex` (Codex CLI Light edition; live npm alias `lazycodex-ai`, repository/bin identity `lazycodex`; Codex marketplace `sisyphuslabs` / plugin `omo`) + `omo-senpi` (Senpi native TypeScript extension adapter; local-path Pi package under `packages/omo-senpi/plugin`). Adapter-support: `senpi-task` (Senpi-coupled task engine consumed only by `omo-senpi`; not harness-neutral, so not a `*-core` package) + `omo-native` (npm `omo-ai` distribution launcher staging the `omo-senpi` plugin payload). See [`packages/omo-opencode/src/AGENTS.md`](omo-opencode/src/AGENTS.md), [`packages/omo-codex/AGENTS.md`](omo-codex/AGENTS.md), [`packages/omo-senpi/AGENTS.md`](omo-senpi/AGENTS.md), [`packages/senpi-task/AGENTS.md`](senpi-task/AGENTS.md) |
 | **Skills** | 1 | [`shared-skills`](shared-skills/AGENTS.md) (cross-harness SKILL.md bundle shared between OMO and Codex; shipped via root `files` array) |
 | **Web** | 1 | `web` |
@@ -58,6 +62,7 @@ The checkout can contain only `package.json`; `files: ["bin"]` describes the gen
 | [`team-core/`](team-core/AGENTS.md) | `src/`, `tsconfig.json` | Team-mode registry, mailbox, tasklist, state, worktree, and tmux layout domain primitives. |
 | [`delegate-core/`](delegate-core/AGENTS.md) | `src/`, `tsconfig.json` | Delegate task selection and retry primitives. |
 | [`omo-config-core/`](omo-config-core/AGENTS.md) | `src/`, `tsconfig.json` | Harness-neutral `omo.json` schema, walked loader, and comment-preserving atomic writer. |
+| [`thread-address-core/`](thread-address-core/AGENTS.md) | `src/`, `tsconfig.json` | Dependency-free thread and device address rules (grammar, device resolver, row identity, refusals as data) shared by omo-senpi and the desktop app. |
 
 ## ADAPTERS
 

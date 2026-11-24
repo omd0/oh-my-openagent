@@ -19,8 +19,12 @@ File paths in this table are relative to `src/`.
 | `provider-cache.ts` | `ProviderCache` DI interface: `readConnectedProvidersCache()`, `findProviderModelMetadata()` |
 | `model-availability.ts` | `fuzzyMatchModel()` - exact, then exact model-ID, then shortest **substring** match against `availableModels` (not prefix) |
 | `agent-model-requirements.ts` | Hardcoded `AGENT_MODEL_REQUIREMENTS` fallback chains (11 agents) |
+<<<<<<< HEAD
 | `category-model-requirements.ts` | Hardcoded `CATEGORY_MODEL_REQUIREMENTS` fallback chains (8 categories); current family IDs come from `latest-models.ts` |
 | `latest-models.ts` | Import-free `LATEST_MODEL_BY_FAMILY`; separately exported as `@oh-my-opencode/model-core/latest-models` |
+=======
+| `category-model-requirements.ts` | Hardcoded `CATEGORY_MODEL_REQUIREMENTS` fallback chains (8 categories), including the exact GPT-6.2 Astra (`ultrabrain` max, `deep-high` high) and GPT-6.2 Sol (`deep-low` medium) lanes, which carry no fallback model |
+>>>>>>> origin/dev
 | `provider-model-id-transform.ts` | Provider-specific ID transforms (Vercel sub-provider inference, Claude version dots, Gemini preview suffixes) |
 | `model-capabilities/index.ts` | `getModelCapabilities()` - 4-source priority: runtime metadata -> runtime snapshot -> bundled snapshot -> heuristic family; alias canonicalization, suffix/prefix-tolerant lookup candidates, `resolutionMode` diagnostics |
 | `model-capability-heuristics.ts` | `HEURISTIC_MODEL_FAMILY_REGISTRY` + `detectHeuristicModelFamily()` - pattern-based family detection when no snapshot entry exists |

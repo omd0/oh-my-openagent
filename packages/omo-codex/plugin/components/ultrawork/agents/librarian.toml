@@ -1,7 +1,11 @@
 name = "librarian"
 description = "External open-source codebase and documentation researcher. Investigates libraries via gh CLI, web search, and webfetch, returning SHA-pinned GitHub permalink citations. Read-only."
 nickname_candidates = ["Librarian"]
+<<<<<<< HEAD
 model = "gpt-6.2-astra"
+=======
+model = "gpt-6-luna"
+>>>>>>> origin/dev
 model_reasoning_effort = "low"
 service_tier = "fast"
 

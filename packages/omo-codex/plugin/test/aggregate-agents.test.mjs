@@ -22,8 +22,13 @@ const agentSchemaKeys = new Set([
 // -manual-qa.md are the artifact names the ulw-loop spawn guard requires before a gate-reviewer
 // spawn; currentAttemptDir is a field of `ulw-loop status --json`.
 const lazycodexAgentInvariants = new Map([
+<<<<<<< HEAD
   ["explorer.toml", { model: "gpt-6.2-astra", effort: "low" }],
   ["librarian.toml", { model: "gpt-6.2-astra", effort: "low" }],
+=======
+  ["explorer.toml", { model: "gpt-6-luna", effort: "low" }],
+  ["librarian.toml", { model: "gpt-6-luna", effort: "low" }],
+>>>>>>> origin/dev
   ["metis.toml", { model: "gpt-6.2-astra", effort: "high" }],
   ["momus.toml", { model: "gpt-6.2-astra", effort: "high" }],
   ["plan.toml", { model: "gpt-6.2-astra", effort: "high" }],

@@ -22,8 +22,13 @@ test("#given empty Codex config #when script installer updates config #then sets
 
   // then
   const content = await readFile(configPath, "utf8")
+<<<<<<< HEAD
   assert.match(content, /model = "gpt-6\.2-astra"/)
   assert.match(content, /model_context_window = 1050000/)
+=======
+  assert.match(content, /model = "gpt-6.2-astra"/)
+  assert.match(content, /model_context_window = 600000/)
+>>>>>>> origin/dev
   assert.match(content, /model_reasoning_effort = "high"/)
   assert.match(content, /plan_mode_reasoning_effort = "xhigh"/)
 })
@@ -61,8 +66,13 @@ test("#given existing model and reasoning config #when script installer updates 
   assert.equal(content.match(/^model_context_window\s*=/gm)?.length, 1)
   assert.equal(content.match(/^model_reasoning_effort\s*=/gm)?.length, 1)
   assert.equal(content.match(/^plan_mode_reasoning_effort\s*=/gm)?.length, 1)
+<<<<<<< HEAD
   assert.match(content, /model = "gpt-6\.2-astra"/)
   assert.match(content, /model_context_window = 1050000/)
+=======
+  assert.match(content, /model = "gpt-6.2-astra"/)
+  assert.match(content, /model_context_window = 600000/)
+>>>>>>> origin/dev
   assert.match(content, /model_reasoning_effort = "high"/)
   assert.match(content, /plan_mode_reasoning_effort = "xhigh"/)
   assert.doesNotMatch(content, /model = "gpt-5\.2"/)

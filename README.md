@@ -6,12 +6,6 @@
 > Install from **this repository** using the instructions below. The upstream installer and npm packages install upstream OmO.
 > See [myomo releases](https://github.com/omd0/oh-my-openagent/releases) for this fork's release notes.
 
-> **Sponsors**
-> These are our sponsors. They help keep OmO going as a personal side project.
-> | [<img alt="OpenGateway" src="./.github/assets/opengateway-logo.svg" width="156px" />](https://opengateway.ai/) | **[OpenGateway](https://opengateway.ai/)** sponsors OmO. An OpenAI-compatible gateway that puts many model providers behind one API. Thank you for backing open source. |
-> | :-----| :----- |
-
-
 > [!TIP]
 > Be with us!
 >

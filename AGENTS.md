@@ -105,6 +105,7 @@ bun test packages/omo-native/test
 ```
 
 ## NOTES
+<<<<<<< HEAD
 - Root Bun discovery excludes web, get-worker, desktop TypeScript packages and Codex plugin suites. Run their own gates; desktop packages commonly use Vitest, while the LSP facade and daemon use npm runners.
 - Web uses Next.js 16, React 19 and OpenNext/Cloudflare. Edit `docs/` or React docs components; `packages/web/lib/docs-content.generated.ts` is generated. Production deploys use GitHub Actions.
 - Native state defaults to `~/.omo/agent`; the launcher owns explicit and legacy directory overrides. Child task hosts use per-session-tree shards, distinct from operator/thread RPC endpoints.
@@ -112,3 +113,48 @@ bun test packages/omo-native/test
 - Rust desktop tests run from `crates/`. Fake backend scenarios are OS-free; native capture/input/identity proofs require their target OS and desktop services.
 - Desktop schema changes regenerate Rust schema/docs before the TypeScript protocol mirror. Download Worker migrations are gated by its deployment ledger.
 - Package-local AGENTS.md files carry implementation contracts, live QA procedures and generated-artifact ownership; consult them before editing those subtrees.
+=======
+
+- **Logger:** writes `oh-my-opencode.log` to the OS temp dir (`/tmp` on Linux, `/var/folders/.../T/` on macOS, `%TEMP%` on Windows — i.e. Node's `os.tmpdir()`). Rotated at 50 MB; previous segments live at `.1` and `.2` (oldest dropped).
+- **Background tasks:** 5 concurrent per `${providerID}/${modelID}` key by default (configurable via `background_task.modelConcurrency` / `providerConcurrency`); FIFO queue when slots full.
+- **Plugin load timeout:** 10s for Claude Code plugin discovery.
+- **Model fallback:** per-agent chains in `packages/omo-opencode/src/shared/model-requirements.ts`. **There is no single global priority.**
+- **Two fallback systems:** `model-fallback` (proactive, chat.params, hardcoded chains) vs `runtime-fallback` (reactive, session.error, configurable per-category/agent).
+- **Config migration:** idempotent via `_migrations` tracking, atomic writes with timestamped backups.
+- **Goal feature (replaces ralph-loop):** `packages/omo-opencode/src/hooks/goal/` session-tier hook + `create_goal`/`update_goal`/`get_goal` tools, gated on `goal.enabled` (default off). Legacy `ralph_loop` config migrates to `goal` in `packages/omo-opencode/src/config/validate.ts` (deprecated schema shim); `ralph-loop` hook dir retained but no longer wired.
+- **Build:** `bun build` (ESM, entry `packages/omo-opencode/src/index.ts`) + `tsc --emitDeclarationOnly`, external: `zod`.
+- **CI tests:** root tests run through plain `bun test`; `packages/web/**` has its own package-level CI workflow.
+- **Barrel `index.ts` files** establish module boundaries within `packages/omo-opencode/src/`.
+- **Architecture rules** enforced via the `rules-injector` hook reading `.omo/rules/*.md` (e.g. `test-discipline.md`, `file-size-architectural-smell.md`, `typescript-programmer.md`).
+- **Windows builds:** run on `windows-latest` (not cross-compiled) to avoid Bun segfaults.
+- **Platform launchers:** detect AVX2 + libc family at runtime, fallback to baseline if needed.
+- **IntentGate (`keyword-detector`):** classifies user intent (`ultrawork`/`ulw`, `search`, `analyze`, `team`) and injects mode-specific prompts.
+- **Hashline edit:** every `Read` output tagged with `LINE#ID` content hashes (chars from `ZPMQVRWSNKTXJBYH`); edits reject on hash mismatch.
+- **zauc-mocks pattern:** directories named `zauc-mocks-*` (under `packages/omo-opencode/src/hooks/`, `tools/`, `mcp/`, `shared/`) hold `mock.module()` setup that must load alphabetically before the tests that consume those mocked modules. The `zauc-` prefix is purely a sort-order hack for `bun:test` discovery; these are NOT hooks/tools.
+- **Test discipline meta-audits:** repo-wide tests that parse source and FAIL the suite on invariant violations: `packages/omo-opencode/src/shared/mock-module-lifecycle-audit.test.ts` (`mock.module()` without restore) and `prompt-async-route-audit.test.ts` (raw `session.promptAsync` outside the gate) via the TS compiler API; `script/package-registration-audit.test.ts` (workspace/devDep registration + ROADMAP reverse-dependency edges stay zero); `script/shared-core-extraction-guard.test.ts` (`packages/*-core` stay harness-neutral); `packages/omo-opencode/src/shared/markdown-link-audit.test.ts` (no machine-local absolute paths in committed `.md`); `opencode-coupling-audit.test.ts` (×2 pkgs — non-adapter packages must not import `@opencode-ai/*`). Root-level cross-package invariants live in `tests/` (category drift, schema freshness, reasoning-vocabulary parity, ulw-loop/ulw-plan contracts).
+- **Docs:** see [`docs/guide/`](docs/guide) for user-facing guides (overview, installation, orchestration, agent-model-matching, team-mode), [`docs/reference/`](docs/reference) for CLI/configuration/features reference. See also [`CHANGELOG.md`](CHANGELOG.md), [`docs/reference/prompt-async-gate-rfc.md`](docs/reference/prompt-async-gate-rfc.md), and [`docs/reference/release-process.md`](docs/reference/release-process.md).
+- **Rules files** (auto-injected by `rules-injector` hook): scans `.omo/rules/`, `.claude/rules/`, `.cursor/rules/`, `.github/instructions/`, plus `.github/copilot-instructions.md` and `.mdc` files.
+- **Process cleanup:** Background-agent error handlers are now log-only — no force-exit on transient errors. Opt out entirely via `OMO_DISABLE_PROCESS_CLEANUP=1` env var.
+- **models.dev has two distinct consumers:** `bun run build:model-capabilities` (shared model-capabilities cache) and `packages/omo-opencode/scripts/` (OpenGateway catalog generator → tracked `opengateway-models.json`, shape-pinned by test). Do not conflate.
+- **The scheduled model-capabilities refresh overwrites hand-scoped entries today:** feature PRs add single entries to `packages/omo-opencode/src/generated/model-capabilities.generated.json` for models `models.dev` does not carry yet, but `bun run build:model-capabilities` rewrites the whole file, so a refresh PR drops them. Changing the refresh to merge is tracked in #10665; until then, check a refresh PR's removed entries before merging. See [`docs/model-capabilities-maintenance.md`](docs/model-capabilities-maintenance.md).
+- **shared-skills sub-projects:** 19 skills; `ultimate-browsing/engine` and `coding-agent-sessions` are Python sub-projects with own tests; `visual-qa` ships a zero-dep bundled CLI (`scripts/visual-qa.mjs`) - regenerate the bundle after TS fixes.
+- **First-prompt watchdog:** `packages/omo-opencode/src/hooks/runtime-fallback/first-prompt-watchdog.ts` detects subagent sessions producing no progress within `runtime_fallback.first_prompt_timeout_seconds` (300s default, 0 disables) and triggers fallback / abort.
+- **ParentWakeNotifier:** Background-agent parent-wake state in `packages/omo-opencode/src/features/background-agent/parent-wake-notifier.ts` with dependency-injected client and enqueue callback.
+- **Agent state directory:** ONE canonical location, `~/.omo/agent`, resolved through `canonicalAgentDir()` in [`packages/omo-native/bin/lib/agent-dir.js`](packages/omo-native/bin/lib/agent-dir.js) (and its adapter-side twin `resolveAgentHome()` in `packages/omo-senpi/src/components/agent-home/`). EVERY omo entry point - the spawned engine, `omo doctor`, `omo setup`, the local launcher, the local installer - MUST resolve the directory through that helper instead of composing its own default; an explicit `OMO_CODING_AGENT_DIR` (or the legacy `SENPI_CODING_AGENT_DIR` / `PI_CODING_AGENT_DIR`) still wins. Composing a private default is what made settings look erased on update.
+- **Workspace migration:** Runtime state migrated from `.sisyphus/` → `.omo/`. Legacy `.sisyphus/` still exists during transition; `packages/omo-opencode/src/shared/legacy-workspace-migration.ts` copies it forward on first load.
+- **CI nuance:** PRs targeting `master` are hard-blocked — they MUST target `dev`. CI auto-commits schema changes on master push and creates a draft "next" release on dev push.
+
+## Review claim labels (merge-gating)
+
+Three PR labels drive the review workflow; per-PR automation runs in `.github/workflows/pr-automation.yml`, and the stale sweep and merge-group gate live in `.github/workflows/review-claims.yml`:
+
+- `will-review` — a reviewer claims the PR ("I will review this"). Applying it auto-requests the labeler as reviewer and BLOCKS merge via the required `Review claim gate` check.
+- `in-review` — the claimer is actively reviewing. Same merge-blocking + auto-reviewer-request effects.
+- `stale-review` — a claim sat 3+ days without the claimer's review; the sweep removes the claim labels and applies this one. A fresh claim clears it.
+
+Rules:
+- Apply `will-review` when you plan to review a PR; switch to `in-review` when you start.
+- NEVER merge a PR carrying `will-review` or `in-review`; the gate check enforces this.
+- Claim labels are removed automatically ONLY when the claimer (the person who applied the label) submits an approve or request-changes review. Do not remove someone else's claim label by hand.
+- If a PR shows `stale-review`, it needs a (new) reviewer: claim it.
+>>>>>>> origin/dev

@@ -3,7 +3,13 @@ import { describe, expect, test } from "bun:test"
 import { resolveManagedAgentReasoning } from "./managed-agent-reasoning-defaults"
 
 describe("resolveManagedAgentReasoning", () => {
+<<<<<<< HEAD
   const bundled = { bundledModel: "gpt-6.2-astra", bundledEffort: "low" }
+=======
+  const bundled = { bundledModel: "gpt-6-luna", bundledEffort: "low" }
+  const bundledModelFor = (agentName: string) =>
+    agentName === "explorer" || agentName === "librarian" ? "gpt-6-luna" : "gpt-6.2-astra"
+>>>>>>> origin/dev
 
   test.each([
     ["explorer", "gpt-5.6-luna", "low", "low"],
@@ -21,13 +27,22 @@ describe("resolveManagedAgentReasoning", () => {
     ["momus", "gpt-5.5", "xhigh", "high"],
     ["momus", "gpt-5.6-sol", "ultra", "high"],
     ["lazycodex-gate-reviewer", "gpt-5.6-sol", "xhigh", "low"],
+    ["explorer", "gpt-6-astra", "low", "low"],
+    ["metis", "gpt-6-astra", "high", "high"],
+    ["momus", "gpt-6-astra", "high", "high"],
+    ["lazycodex-worker-high", "gpt-6-astra", "medium", "medium"],
+    ["lazycodex-gate-reviewer", "gpt-6-astra", "low", "low"],
   ])(
-    "#given %s preserved at %s/%s #when resolving against Astra #then effort is %s",
+    "#given %s preserved at %s/%s #when resolving against the current bundle #then effort is %s",
     (agentName, model, effort, expected) => {
       expect(
         resolveManagedAgentReasoning({
           agentName,
+<<<<<<< HEAD
           bundledModel: "gpt-6.2-astra",
+=======
+          bundledModel: bundledModelFor(agentName),
+>>>>>>> origin/dev
           bundledEffort: expected,
           preserved: { model, effort },
         }),
@@ -67,8 +82,8 @@ describe("resolveManagedAgentReasoning", () => {
     ["lazycodex-gate-reviewer", "gpt-5.6-sol", "high", "gpt-5.6-sol", "xhigh"],
     ["lazycodex-gate-reviewer", "gpt-5.5", "high", "gpt-5.5", "xhigh"],
     ["momus", "custom-model", "high", "gpt-5.5", "xhigh"],
-    ["momus", "gpt-6-astra", "medium", "gpt-5.5", "xhigh"],
-    ["momus", "gpt-6-astra", "high", "custom-model", "xhigh"],
+    ["momus", "gpt-6.2-astra", "medium", "gpt-5.5", "xhigh"],
+    ["momus", "gpt-6.2-astra", "high", "custom-model", "xhigh"],
     ["momus", "gpt-5.6-terra", "high", "gpt-5.6-sol", "xhigh"],
   ])(
     "#given %s bundled at %s/%s with preserved %s/%s #when a pair is non-current or customized #then keeps the effort",

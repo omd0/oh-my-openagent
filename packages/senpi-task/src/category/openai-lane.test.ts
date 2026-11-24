@@ -34,8 +34,12 @@ function expectResolved(
 const GPT_CATEGORY_CASES = [
   { category: "ultrabrain", modelId: "gpt-6.2-astra", variant: "max" },
   { category: "deep-high", modelId: "gpt-6.2-astra", variant: "high" },
+<<<<<<< HEAD
   { category: "deep-low", modelId: "gpt-5.6-sol-fast", variant: "medium" },
   { category: "deep-low", modelId: "gpt-5.6-sol", variant: "medium" },
+=======
+  { category: "deep-low", modelId: "gpt-6.2-sol", variant: "medium" },
+>>>>>>> origin/dev
 ] as const
 
 describe("openai lane policy", () => {
@@ -55,19 +59,31 @@ describe("openai lane policy", () => {
       })
     }
 
-    test("#when the API lane is listed first in the registry #then chatgpt-subscription still wins and its runtime chain stays on the codex lane", () => {
+    test("#when the API lane is listed first beside older GPT models #then chatgpt-subscription still wins and no lane carries a cross-model fallback", () => {
       // given
       const models = registry([
         model("openai", "gpt-6.2-astra"),
+<<<<<<< HEAD
         model("openai", "gpt-5.6-sol"),
         model("chatgpt-subscription", "gpt-5.6-sol"),
+=======
+        model("openai", "gpt-6.2-sol"),
+        model("openai", "gpt-6-astra"),
+        model("openai", "gpt-5.6-sol"),
+        model("chatgpt-subscription", "gpt-5.6-sol"),
+        model("chatgpt-subscription", "gpt-6-astra"),
+        model("chatgpt-subscription", "gpt-6.2-sol"),
+>>>>>>> origin/dev
         model("chatgpt-subscription", "gpt-6.2-astra"),
       ])
 
       // when
-      const result = expectResolved(resolveCategory("ultrabrain", {}, models))
+      const results = ["ultrabrain", "deep-high", "deep-low"].map((category) =>
+        expectResolved(resolveCategory(category, {}, models)),
+      )
 
       // then
+<<<<<<< HEAD
       expect(result.spec.provider).toBe("chatgpt-subscription")
       expect(result.spec.modelId).toBe("gpt-6.2-astra")
       expect(result.spec.fallback_models?.map((entry) => entry.display)).toEqual(["chatgpt-subscription/gpt-5.6-sol"])
@@ -91,6 +107,14 @@ describe("openai lane policy", () => {
       expect(low.spec.modelId).toBe("gpt-5.6-sol")
       expect(high.spec.fallback_models ?? []).toEqual([])
       expect(low.spec.fallback_models ?? []).toEqual([])
+=======
+      expect(results.map((result) => `${result.spec.provider}/${result.spec.modelId}`)).toEqual([
+        "chatgpt-subscription/gpt-6.2-astra",
+        "chatgpt-subscription/gpt-6.2-astra",
+        "chatgpt-subscription/gpt-6.2-sol",
+      ])
+      for (const result of results) expect(result.spec.fallback_models ?? []).toEqual([])
+>>>>>>> origin/dev
     })
   })
 
@@ -122,6 +146,10 @@ describe("openai lane policy", () => {
 
       // then
       expect(result.spec.provider).toBe("chatgpt-subscription")
+<<<<<<< HEAD
+=======
+      expect(result.spec.modelId).toBe("gpt-6.2-astra")
+>>>>>>> origin/dev
       expect(result.spec.requested_model?.display).toBe("chatgpt-subscription/gpt-6.2-astra")
     })
   })

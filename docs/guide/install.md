@@ -24,7 +24,7 @@ powershell -ExecutionPolicy Bypass -c "irm https://get.omo.dev/install.ps1 | iex
 
 <!-- install-tabs:end -->
 
-The script picks the build for your OS, CPU and C library, checks it against the release `SHA256SUMS`, and installs it at `~/.local/bin/omo` (`%USERPROFILE%\.local\bin\omo.exe` on Windows). On WSL, run the macOS/Linux command inside your Linux distribution; it installs the Linux build there. The script refuses to run as root or as Administrator, so run it as your own user.
+The script picks the build for your OS, CPU and C library, checks it against the release `SHA256SUMS`, and installs it at `~/.local/bin/omo` (`%USERPROFILE%\.local\bin\omo.exe` on Windows). On WSL, run the macOS/Linux command inside your Linux distribution; it installs the Linux build there. The script refuses to run under `sudo` or as Administrator, so run it as your own user. A shell whose only user is root (proot-distro on Android, a container) installs into root's home without any override.
 
 It also installs `pi` (`pi.exe` on Windows) as another name for the same OmO launcher when that path is available. Both commands use the same settings, sessions, model selection and arguments. This alias launches OmO Native, not a separate upstream Pi installation; it does not guarantee compatibility with every Pi extension.
 

@@ -6,6 +6,7 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
     expect(CATEGORY_MODEL_REQUIREMENTS["writing"].requiresAnyModel).toBe(true)
   })
 
+<<<<<<< HEAD
   test("ultrabrain routes GPT-6 Astra max before the existing Sol max fallbacks", () => {
     expect(CATEGORY_MODEL_REQUIREMENTS.ultrabrain.fallbackChain).toEqual([
       { providers: ["openai", "chatgpt-subscription"], model: "gpt-6.2-astra", variant: "max" },
@@ -82,6 +83,19 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
       "gpt-5.6-sol-fast",
     ])
     expect(CATEGORY_MODEL_REQUIREMENTS["deep-high"].fallbackChain.map(({ model }) => model)).toEqual(["gpt-6.2-astra"])
+=======
+  // #14155: each GPT deep lane is one exact-model rung with no older, Fast or other-family fallback, and
+  // stays unavailable (requiresAnyModel) when no listed provider serves it.
+  test.each([
+    ["ultrabrain", ["openai", "chatgpt-subscription", "opencode"], "gpt-6.2-astra", "max"],
+    ["deep-high", ["openai", "chatgpt-subscription", "opencode"], "gpt-6.2-astra", "high"],
+    ["deep-low", ["openai", "chatgpt-subscription"], "gpt-6.2-sol", "medium"],
+  ])("%s runs exactly one rung and requires it", (category, providers, model, variant) => {
+    const requirement = CATEGORY_MODEL_REQUIREMENTS[category]
+
+    expect(requirement.fallbackChain).toEqual([{ providers, model, variant }])
+    expect(requirement.requiresAnyModel).toBe(true)
+>>>>>>> origin/dev
   })
 
   test("visual-engineering starts with Argon low (#10187)", () => {
@@ -214,6 +228,14 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
       {
         providers: ["openai", "chatgpt-subscription"],
         model: "gpt-6.2-sol",
+<<<<<<< HEAD
+=======
+        variant: "medium",
+      },
+      {
+        providers: ["openai", "chatgpt-subscription"],
+        model: "gpt-6.1-sol",
+>>>>>>> origin/dev
         variant: "medium",
       },
       {

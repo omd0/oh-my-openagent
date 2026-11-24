@@ -151,8 +151,13 @@
           "gpt-6-sol-fast",
           "gpt-6.1-sol",
           "gpt-6.1-sol-fast",
+<<<<<<< HEAD
           "gpt-6.1-terra",
           "gpt-6.2-astra",
+=======
+          "gpt-6.2-astra",
+          "gpt-6.2-astra-fast",
+>>>>>>> origin/dev
           "gpt-6.2-sol",
           "gpt-6.2-sol-fast",
           "deepseek-flash",
@@ -211,8 +216,13 @@
           "gpt-6-sol-fast",
           "gpt-6.1-sol",
           "gpt-6.1-sol-fast",
+<<<<<<< HEAD
           "gpt-6.1-terra",
           "gpt-6.2-astra",
+=======
+          "gpt-6.2-astra",
+          "gpt-6.2-astra-fast",
+>>>>>>> origin/dev
           "gpt-6.2-sol",
           "gpt-6.2-sol-fast",
           "deepseek-flash",
@@ -271,8 +281,13 @@
           "gpt-6-sol-fast",
           "gpt-6.1-sol",
           "gpt-6.1-sol-fast",
+<<<<<<< HEAD
           "gpt-6.1-terra",
           "gpt-6.2-astra",
+=======
+          "gpt-6.2-astra",
+          "gpt-6.2-astra-fast",
+>>>>>>> origin/dev
           "gpt-6.2-sol",
           "gpt-6.2-sol-fast",
           "deepseek-flash",
@@ -331,8 +346,13 @@
           "gpt-6-sol-fast",
           "gpt-6.1-sol",
           "gpt-6.1-sol-fast",
+<<<<<<< HEAD
           "gpt-6.1-terra",
           "gpt-6.2-astra",
+=======
+          "gpt-6.2-astra",
+          "gpt-6.2-astra-fast",
+>>>>>>> origin/dev
           "gpt-6.2-sol",
           "gpt-6.2-sol-fast",
           "deepseek-flash",
@@ -391,8 +411,13 @@
           "gpt-6-sol-fast",
           "gpt-6.1-sol",
           "gpt-6.1-sol-fast",
+<<<<<<< HEAD
           "gpt-6.1-terra",
           "gpt-6.2-astra",
+=======
+          "gpt-6.2-astra",
+          "gpt-6.2-astra-fast",
+>>>>>>> origin/dev
           "gpt-6.2-sol",
           "gpt-6.2-sol-fast",
           "deepseek-flash",
@@ -451,8 +476,13 @@
           "gpt-6-sol-fast",
           "gpt-6.1-sol",
           "gpt-6.1-sol-fast",
+<<<<<<< HEAD
           "gpt-6.1-terra",
           "gpt-6.2-astra",
+=======
+          "gpt-6.2-astra",
+          "gpt-6.2-astra-fast",
+>>>>>>> origin/dev
           "gpt-6.2-sol",
           "gpt-6.2-sol-fast",
           "deepseek-flash",
@@ -511,8 +541,13 @@
           "gpt-6-sol-fast",
           "gpt-6.1-sol",
           "gpt-6.1-sol-fast",
+<<<<<<< HEAD
           "gpt-6.1-terra",
           "gpt-6.2-astra",
+=======
+          "gpt-6.2-astra",
+          "gpt-6.2-astra-fast",
+>>>>>>> origin/dev
           "gpt-6.2-sol",
           "gpt-6.2-sol-fast",
           "deepseek-flash",
@@ -571,8 +606,13 @@
           "gpt-6-sol-fast",
           "gpt-6.1-sol",
           "gpt-6.1-sol-fast",
+<<<<<<< HEAD
           "gpt-6.1-terra",
           "gpt-6.2-astra",
+=======
+          "gpt-6.2-astra",
+          "gpt-6.2-astra-fast",
+>>>>>>> origin/dev
           "gpt-6.2-sol",
           "gpt-6.2-sol-fast",
           "deepseek-flash",
@@ -631,8 +671,13 @@
           "gpt-6-sol-fast",
           "gpt-6.1-sol",
           "gpt-6.1-sol-fast",
+<<<<<<< HEAD
           "gpt-6.1-terra",
           "gpt-6.2-astra",
+=======
+          "gpt-6.2-astra",
+          "gpt-6.2-astra-fast",
+>>>>>>> origin/dev
           "gpt-6.2-sol",
           "gpt-6.2-sol-fast",
           "deepseek-flash",
@@ -691,8 +736,13 @@
           "gpt-6-sol-fast",
           "gpt-6.1-sol",
           "gpt-6.1-sol-fast",
+<<<<<<< HEAD
           "gpt-6.1-terra",
           "gpt-6.2-astra",
+=======
+          "gpt-6.2-astra",
+          "gpt-6.2-astra-fast",
+>>>>>>> origin/dev
           "gpt-6.2-sol",
           "gpt-6.2-sol-fast",
           "deepseek-flash",
@@ -1143,8 +1193,13 @@
           "gpt-6-sol-fast",
           "gpt-6.1-sol",
           "gpt-6.1-sol-fast",
+<<<<<<< HEAD
           "gpt-6.1-terra",
           "gpt-6.2-astra",
+=======
+          "gpt-6.2-astra",
+          "gpt-6.2-astra-fast",
+>>>>>>> origin/dev
           "gpt-6.2-sol",
           "gpt-6.2-sol-fast",
           "deepseek-flash",
@@ -1503,8 +1558,13 @@
           "gpt-6-sol-fast",
           "gpt-6.1-sol",
           "gpt-6.1-sol-fast",
+<<<<<<< HEAD
           "gpt-6.1-terra",
           "gpt-6.2-astra",
+=======
+          "gpt-6.2-astra",
+          "gpt-6.2-astra-fast",
+>>>>>>> origin/dev
           "gpt-6.2-sol",
           "gpt-6.2-sol-fast",
           "deepseek-flash",
@@ -1687,8 +1747,13 @@
           "gpt-6-sol-fast",
           "gpt-6.1-sol",
           "gpt-6.1-sol-fast",
+<<<<<<< HEAD
           "gpt-6.1-terra",
           "gpt-6.2-astra",
+=======
+          "gpt-6.2-astra",
+          "gpt-6.2-astra-fast",
+>>>>>>> origin/dev
           "gpt-6.2-sol",
           "gpt-6.2-sol-fast",
           "deepseek-flash",
@@ -2331,8 +2396,13 @@
           "gpt-6-sol-fast",
           "gpt-6.1-sol",
           "gpt-6.1-sol-fast",
+<<<<<<< HEAD
           "gpt-6.1-terra",
           "gpt-6.2-astra",
+=======
+          "gpt-6.2-astra",
+          "gpt-6.2-astra-fast",
+>>>>>>> origin/dev
           "gpt-6.2-sol",
           "gpt-6.2-sol-fast",
           "deepseek-flash",
@@ -2604,8 +2674,13 @@
           "gpt-6-sol-fast",
           "gpt-6.1-sol",
           "gpt-6.1-sol-fast",
+<<<<<<< HEAD
           "gpt-6.1-terra",
           "gpt-6.2-astra",
+=======
+          "gpt-6.2-astra",
+          "gpt-6.2-astra-fast",
+>>>>>>> origin/dev
           "gpt-6.2-sol",
           "gpt-6.2-sol-fast",
           "deepseek-flash",
@@ -2736,8 +2811,13 @@
           "gpt-6-sol-fast",
           "gpt-6.1-sol",
           "gpt-6.1-sol-fast",
+<<<<<<< HEAD
           "gpt-6.1-terra",
           "gpt-6.2-astra",
+=======
+          "gpt-6.2-astra",
+          "gpt-6.2-astra-fast",
+>>>>>>> origin/dev
           "gpt-6.2-sol",
           "gpt-6.2-sol-fast",
           "deepseek-flash",
@@ -2868,8 +2948,13 @@
           "gpt-6-sol-fast",
           "gpt-6.1-sol",
           "gpt-6.1-sol-fast",
+<<<<<<< HEAD
           "gpt-6.1-terra",
           "gpt-6.2-astra",
+=======
+          "gpt-6.2-astra",
+          "gpt-6.2-astra-fast",
+>>>>>>> origin/dev
           "gpt-6.2-sol",
           "gpt-6.2-sol-fast",
           "deepseek-flash",
@@ -3123,6 +3208,7 @@
           "init-deep",
           "lsp-setup",
           "mass-ulw",
+          "omo-relay",
           "onboarding",
           "programming",
           "refactor",
@@ -3209,8 +3295,13 @@
           "gpt-6-sol-fast",
           "gpt-6.1-sol",
           "gpt-6.1-sol-fast",
+<<<<<<< HEAD
           "gpt-6.1-terra",
           "gpt-6.2-astra",
+=======
+          "gpt-6.2-astra",
+          "gpt-6.2-astra-fast",
+>>>>>>> origin/dev
           "gpt-6.2-sol",
           "gpt-6.2-sol-fast",
           "deepseek-flash",
@@ -3269,8 +3360,13 @@
           "gpt-6-sol-fast",
           "gpt-6.1-sol",
           "gpt-6.1-sol-fast",
+<<<<<<< HEAD
           "gpt-6.1-terra",
           "gpt-6.2-astra",
+=======
+          "gpt-6.2-astra",
+          "gpt-6.2-astra-fast",
+>>>>>>> origin/dev
           "gpt-6.2-sol",
           "gpt-6.2-sol-fast",
           "deepseek-flash",
@@ -3377,8 +3473,13 @@
           "gpt-6-sol-fast",
           "gpt-6.1-sol",
           "gpt-6.1-sol-fast",
+<<<<<<< HEAD
           "gpt-6.1-terra",
           "gpt-6.2-astra",
+=======
+          "gpt-6.2-astra",
+          "gpt-6.2-astra-fast",
+>>>>>>> origin/dev
           "gpt-6.2-sol",
           "gpt-6.2-sol-fast",
           "deepseek-flash",
@@ -3555,8 +3656,13 @@
           "gpt-6-sol-fast",
           "gpt-6.1-sol",
           "gpt-6.1-sol-fast",
+<<<<<<< HEAD
           "gpt-6.1-terra",
           "gpt-6.2-astra",
+=======
+          "gpt-6.2-astra",
+          "gpt-6.2-astra-fast",
+>>>>>>> origin/dev
           "gpt-6.2-sol",
           "gpt-6.2-sol-fast",
           "deepseek-flash",
@@ -3614,8 +3720,13 @@
           "gpt-6-sol-fast",
           "gpt-6.1-sol",
           "gpt-6.1-sol-fast",
+<<<<<<< HEAD
           "gpt-6.1-terra",
           "gpt-6.2-astra",
+=======
+          "gpt-6.2-astra",
+          "gpt-6.2-astra-fast",
+>>>>>>> origin/dev
           "gpt-6.2-sol",
           "gpt-6.2-sol-fast",
           "deepseek-flash",
@@ -3673,8 +3784,13 @@
           "gpt-6-sol-fast",
           "gpt-6.1-sol",
           "gpt-6.1-sol-fast",
+<<<<<<< HEAD
           "gpt-6.1-terra",
           "gpt-6.2-astra",
+=======
+          "gpt-6.2-astra",
+          "gpt-6.2-astra-fast",
+>>>>>>> origin/dev
           "gpt-6.2-sol",
           "gpt-6.2-sol-fast",
           "deepseek-flash",
@@ -3949,5 +4065,9 @@
       }
     }
   },
+<<<<<<< HEAD
   "sha256": "98ec955206678b7a32bb14dded9cad40054400ecbea283145e5e273d6d51c238"
+=======
+  "sha256": "0ba9c2f8c0f052b8749b8a6ebdfb00960ca42c47ba8122d3850aa09ade7bca8c"
+>>>>>>> origin/dev
 }

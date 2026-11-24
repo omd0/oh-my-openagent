@@ -1,5 +1,9 @@
 #!/usr/bin/env node
+<<<<<<< HEAD
 // omo-codex-install:27235847060587b2f63fc71b69c1479868199399e3989611d5367fb6df16e826:e0a63b6554196482b4095c5bcb291881c4e8cb45b81d35ffd5b18be03330c763
+=======
+// omo-codex-install:7a9d966d5d8ec729d0d28b595a64b4d7e94cbd2ed04e728165f9988de252e64e:cd5ea4ae571a9759f34d5183015a125d3d7f23263ba0ab8b9663fd9e050d3280
+>>>>>>> origin/dev
 var __esm = (fn, res, err) => () => {
   if (fn)
     try {
@@ -10206,7 +10210,7 @@ var package_default;
 var init_package = __esm(() => {
   package_default = {
     name: "@oh-my-opencode/omo-codex",
-    version: "5.1.75",
+    version: "5.1.82",
     type: "module",
     private: true,
     description: "Codex harness adapter for oh-my-openagent. Vendored Codex plugin namespace (omo) + TypeScript installer + telemetry.",
@@ -10237,7 +10241,6 @@ var init_package = __esm(() => {
       "sync:skills": "node plugin/scripts/sync-skills.mjs"
     },
     dependencies: {
-      "@oh-my-opencode/model-core": "workspace:*",
       "@oh-my-opencode/shared-skills": "workspace:*",
       "@oh-my-opencode/utils": "workspace:*"
     },
@@ -13149,6 +13152,7 @@ function isRootSetting(line, key) {
 // packages/omo-codex/src/install/codex-model-catalog.ts
 import { readFile as readFile10 } from "node:fs/promises";
 import { join as join16 } from "node:path";
+<<<<<<< HEAD
 
 // packages/model-core/src/latest-models.ts
 var LATEST_MODEL_BY_FAMILY = {
@@ -13172,6 +13176,13 @@ var FALLBACK_CODEX_MODEL_CATALOG = {
   current: {
     model: LATEST_MODEL_BY_FAMILY.gptAstra,
     modelContextWindow: 1050000,
+=======
+var CODEX_ASTRA_MODEL = "gpt-6.2-astra";
+var FALLBACK_CODEX_MODEL_CATALOG = {
+  current: {
+    model: CODEX_ASTRA_MODEL,
+    modelContextWindow: 600000,
+>>>>>>> origin/dev
     modelReasoningEffort: "high",
     planModeReasoningEffort: "xhigh"
   },
@@ -19778,6 +19789,13 @@ var OmoGitMasterSettingsSchema = OmoGitMasterSettingsLayerSchema.extend({
   git_env_prefix: GitEnvPrefixSchema.default("GIT_MASTER=1")
 }).strict();
 
+// packages/omo-config-core/src/schema/keyword-detector.ts
+var KeywordTypeSchema = _enum(["ultrawork", "team", "hyperplan", "hyperplan-ultrawork"]);
+var OmoKeywordDetectorSettingsSchema = object({
+  enabled_expansions: array(KeywordTypeSchema).optional(),
+  disabled_keywords: array(KeywordTypeSchema).optional()
+});
+
 // packages/omo-config-core/src/schema/harness.ts
 var HARNESS_IDS = ["codex", "opencode", "omo"];
 var OMO_CONFIG_HARNESS_IDS = ["opencode", "native", "codex"];
@@ -20386,6 +20404,16 @@ var OmoSessionWakeSettingsSchema = object({
   wake_limit: number2().int().min(0).optional()
 }).strict();
 
+// packages/omo-config-core/src/schema/operator-alerts.ts
+var OmoOperatorAlertsSettingsSchema = object({
+  error_streak: object({
+    threshold: number2().int().min(1).optional(),
+    realert_minutes: number2().min(0).optional(),
+    threads: array(string2().trim().min(1)).optional(),
+    webhook_url_env: string2().regex(/^[A-Za-z_][A-Za-z0-9_]*$/).optional()
+  }).strict().optional()
+}).strict();
+
 // packages/omo-config-core/src/schema/config.ts
 var OmoOpenCodeHarnessConfigSchema = record(string2(), unknown());
 var OmoDisabledSkillsSchema = array(string2());
@@ -20393,6 +20421,7 @@ var OmoExcludedModelsSchema = array(string2());
 var OmoTypedHarnessConfigSchema = object({
   provenance: OmoProvenanceSettingsSchema.optional(),
   session_wake: OmoSessionWakeSettingsSchema.optional(),
+  operator_alerts: OmoOperatorAlertsSettingsSchema.optional(),
   formatOnMutation: OmoFormatOnMutationLayerSchema.optional(),
   categories: OmoCategoriesConfigSchema.optional(),
   agents: OmoAgentsConfigSchema.optional(),
@@ -20409,11 +20438,13 @@ var OmoTypedHarnessConfigSchema = object({
   side_panel: OmoSidePanelSettingsLayerSchema.optional(),
   computer: OmoComputerSettingsLayerSchema.optional(),
   disabled_skills: OmoDisabledSkillsSchema.optional(),
+  keyword_detector: OmoKeywordDetectorSettingsSchema.optional(),
   exclude_models: OmoExcludedModelsSchema.optional()
 }).strict();
 var OmoConfigProfileSchema = object({
   provenance: OmoProvenanceSettingsSchema.optional(),
   session_wake: OmoSessionWakeSettingsSchema.optional(),
+  operator_alerts: OmoOperatorAlertsSettingsSchema.optional(),
   formatOnMutation: OmoFormatOnMutationLayerSchema.optional(),
   categories: OmoCategoriesConfigSchema.optional(),
   agents: OmoAgentsConfigSchema.optional(),
@@ -20430,6 +20461,7 @@ var OmoConfigProfileSchema = object({
   side_panel: OmoSidePanelSettingsLayerSchema.optional(),
   computer: OmoComputerSettingsLayerSchema.optional(),
   disabled_skills: OmoDisabledSkillsSchema.optional(),
+  keyword_detector: OmoKeywordDetectorSettingsSchema.optional(),
   exclude_models: OmoExcludedModelsSchema.optional(),
   "[opencode]": OmoOpenCodeHarnessConfigSchema.optional(),
   "[native]": OmoTypedHarnessConfigSchema.optional(),
@@ -20439,6 +20471,7 @@ var OmoConfigProfileSchema = object({
 var OmoConfigSchema = object({
   provenance: OmoProvenanceSettingsSchema.optional(),
   session_wake: OmoSessionWakeSettingsSchema.optional(),
+  operator_alerts: OmoOperatorAlertsSettingsSchema.optional(),
   formatOnMutation: OmoFormatOnMutationSchema.optional(),
   $schema: string2().optional(),
   categories: OmoCategoriesConfigSchema.optional(),
@@ -20456,6 +20489,7 @@ var OmoConfigSchema = object({
   side_panel: OmoSidePanelSettingsSchema.optional(),
   computer: OmoComputerSettingsSchema.optional(),
   disabled_skills: OmoDisabledSkillsSchema.optional(),
+  keyword_detector: OmoKeywordDetectorSettingsSchema.optional(),
   exclude_models: OmoExcludedModelsSchema.optional(),
   "[opencode]": OmoOpenCodeHarnessConfigSchema.optional(),
   "[native]": OmoTypedHarnessConfigSchema.optional(),
@@ -20468,6 +20502,7 @@ var OmoConfigSchema = object({
 var OmoConfigLayerSchema = object({
   provenance: OmoProvenanceSettingsSchema.optional(),
   session_wake: OmoSessionWakeSettingsSchema.optional(),
+  operator_alerts: OmoOperatorAlertsSettingsSchema.optional(),
   formatOnMutation: OmoFormatOnMutationLayerSchema.optional(),
   $schema: string2().optional(),
   categories: OmoCategoriesConfigSchema.optional(),
@@ -20485,6 +20520,7 @@ var OmoConfigLayerSchema = object({
   side_panel: OmoSidePanelSettingsLayerSchema.optional(),
   computer: OmoComputerSettingsLayerSchema.optional(),
   disabled_skills: OmoDisabledSkillsSchema.optional(),
+  keyword_detector: OmoKeywordDetectorSettingsSchema.optional(),
   exclude_models: OmoExcludedModelsSchema.optional(),
   "[opencode]": OmoOpenCodeHarnessConfigSchema.optional(),
   "[native]": OmoTypedHarnessConfigSchema.optional(),
@@ -22247,6 +22283,7 @@ import { lstat as lstat8, readFile as readFile13, readdir as readdir7, writeFile
 import { join as join21 } from "node:path";
 
 // packages/omo-codex/src/install/managed-agent-reasoning-defaults.ts
+var PREVIOUS_CODEX_ASTRA_MODEL = "gpt-6-astra";
 var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
   [
     "explorer",
@@ -22261,7 +22298,11 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       },
       {
         previous: { model: "gpt-5.6-luna", effort: "low" },
-        current: { model: LATEST_MODEL_BY_FAMILY.gptAstra, effort: "low" }
+        current: { model: PREVIOUS_CODEX_ASTRA_MODEL, effort: "low" }
+      },
+      {
+        previous: { model: PREVIOUS_CODEX_ASTRA_MODEL, effort: "low" },
+        current: { model: "gpt-6-luna", effort: "low" }
       }
     ]
   ],
@@ -22278,7 +22319,11 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       },
       {
         previous: { model: "gpt-5.6-luna", effort: "low" },
-        current: { model: LATEST_MODEL_BY_FAMILY.gptAstra, effort: "low" }
+        current: { model: PREVIOUS_CODEX_ASTRA_MODEL, effort: "low" }
+      },
+      {
+        previous: { model: PREVIOUS_CODEX_ASTRA_MODEL, effort: "low" },
+        current: { model: "gpt-6-luna", effort: "low" }
       }
     ]
   ],
@@ -22287,7 +22332,11 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
     [
       {
         previous: { model: "gpt-5.6-sol", effort: "high" },
-        current: { model: LATEST_MODEL_BY_FAMILY.gptAstra, effort: "high" }
+        current: { model: PREVIOUS_CODEX_ASTRA_MODEL, effort: "high" }
+      },
+      {
+        previous: { model: PREVIOUS_CODEX_ASTRA_MODEL, effort: "high" },
+        current: { model: CODEX_ASTRA_MODEL, effort: "high" }
       }
     ]
   ],
@@ -22296,7 +22345,11 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
     [
       {
         previous: { model: "gpt-5.6-luna", effort: "high" },
-        current: { model: LATEST_MODEL_BY_FAMILY.gptAstra, effort: "high" }
+        current: { model: PREVIOUS_CODEX_ASTRA_MODEL, effort: "high" }
+      },
+      {
+        previous: { model: PREVIOUS_CODEX_ASTRA_MODEL, effort: "high" },
+        current: { model: CODEX_ASTRA_MODEL, effort: "high" }
       }
     ]
   ],
@@ -22313,7 +22366,11 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       },
       {
         previous: { model: "gpt-5.6-terra", effort: "high" },
-        current: { model: LATEST_MODEL_BY_FAMILY.gptAstra, effort: "high" }
+        current: { model: PREVIOUS_CODEX_ASTRA_MODEL, effort: "high" }
+      },
+      {
+        previous: { model: PREVIOUS_CODEX_ASTRA_MODEL, effort: "high" },
+        current: { model: CODEX_ASTRA_MODEL, effort: "high" }
       }
     ]
   ],
@@ -22330,7 +22387,11 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       },
       {
         previous: { model: "gpt-5.6-sol", effort: "high" },
-        current: { model: LATEST_MODEL_BY_FAMILY.gptAstra, effort: "high" }
+        current: { model: PREVIOUS_CODEX_ASTRA_MODEL, effort: "high" }
+      },
+      {
+        previous: { model: PREVIOUS_CODEX_ASTRA_MODEL, effort: "high" },
+        current: { model: CODEX_ASTRA_MODEL, effort: "high" }
       }
     ]
   ],
@@ -22347,7 +22408,11 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       },
       {
         previous: { model: "gpt-5.6-terra", effort: "high" },
-        current: { model: LATEST_MODEL_BY_FAMILY.gptAstra, effort: "high" }
+        current: { model: PREVIOUS_CODEX_ASTRA_MODEL, effort: "high" }
+      },
+      {
+        previous: { model: PREVIOUS_CODEX_ASTRA_MODEL, effort: "high" },
+        current: { model: CODEX_ASTRA_MODEL, effort: "high" }
       }
     ]
   ],
@@ -22360,7 +22425,11 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       },
       {
         previous: { model: "gpt-5.6-sol", effort: "medium" },
-        current: { model: LATEST_MODEL_BY_FAMILY.gptAstra, effort: "medium" }
+        current: { model: PREVIOUS_CODEX_ASTRA_MODEL, effort: "medium" }
+      },
+      {
+        previous: { model: PREVIOUS_CODEX_ASTRA_MODEL, effort: "medium" },
+        current: { model: CODEX_ASTRA_MODEL, effort: "medium" }
       }
     ]
   ],
@@ -22373,7 +22442,11 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       },
       {
         previous: { model: "gpt-5.6-terra", effort: "medium" },
-        current: { model: LATEST_MODEL_BY_FAMILY.gptAstra, effort: "medium" }
+        current: { model: PREVIOUS_CODEX_ASTRA_MODEL, effort: "medium" }
+      },
+      {
+        previous: { model: PREVIOUS_CODEX_ASTRA_MODEL, effort: "medium" },
+        current: { model: CODEX_ASTRA_MODEL, effort: "medium" }
       }
     ]
   ],
@@ -22386,7 +22459,11 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       },
       {
         previous: { model: "gpt-5.6-terra", effort: "high" },
-        current: { model: LATEST_MODEL_BY_FAMILY.gptAstra, effort: "high" }
+        current: { model: PREVIOUS_CODEX_ASTRA_MODEL, effort: "high" }
+      },
+      {
+        previous: { model: PREVIOUS_CODEX_ASTRA_MODEL, effort: "high" },
+        current: { model: CODEX_ASTRA_MODEL, effort: "high" }
       }
     ]
   ],
@@ -22399,7 +22476,11 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       },
       {
         previous: { model: "gpt-5.6-luna", effort: "high" },
-        current: { model: LATEST_MODEL_BY_FAMILY.gptAstra, effort: "high" }
+        current: { model: PREVIOUS_CODEX_ASTRA_MODEL, effort: "high" }
+      },
+      {
+        previous: { model: PREVIOUS_CODEX_ASTRA_MODEL, effort: "high" },
+        current: { model: CODEX_ASTRA_MODEL, effort: "high" }
       }
     ]
   ],
@@ -22416,7 +22497,11 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       },
       {
         previous: { model: "gpt-5.6-sol", effort: "low" },
-        current: { model: LATEST_MODEL_BY_FAMILY.gptAstra, effort: "low" }
+        current: { model: PREVIOUS_CODEX_ASTRA_MODEL, effort: "low" }
+      },
+      {
+        previous: { model: PREVIOUS_CODEX_ASTRA_MODEL, effort: "low" },
+        current: { model: CODEX_ASTRA_MODEL, effort: "low" }
       }
     ]
   ]
