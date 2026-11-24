@@ -11,6 +11,7 @@ import { createConfigStartupComponent } from "../components/config-startup"
 import { createConfigWatchComponent } from "../components/config-watch"
 import { createDeviceServiceComponent } from "../components/device-service"
 import { createFallbackArchitectComponent } from "../components/fallback-architect"
+import { createFilePickerComponent } from "../components/file-picker"
 import { createFeedbackComponent } from "../components/feedback"
 import { createGitMasterAttributionComponent } from "../components/git-master"
 import { createInitDeepAdvisorComponent } from "../components/init-deep-advisor"
@@ -43,6 +44,8 @@ export function createOmoSenpiComponents(taskComponent: OmoSenpiComponent): OmoS
     // outside the native-badge -> onboarding -> advisor adjacency that session-start
     // ordering pins (session-start-ordering.test.ts).
     createBundledSkillsComponent(),
+    // Wrap the host's file completion before skill aliases add their autocomplete behavior.
+    createFilePickerComponent(),
     // Its input handler must run before every other omo input handler: it rewrites a bare
     // `/<bundled-skill>` into the `/skill:` form the later handlers and senpi's expansion read.
     createSkillCommandsComponent(),

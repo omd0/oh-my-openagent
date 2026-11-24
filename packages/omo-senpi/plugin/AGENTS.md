@@ -38,6 +38,7 @@ Every alias below maps through package.json to an extensions sidecar; keep fresh
 |--------------------------|---------|----------------------------|
 | task-runtime | omo-task.js | Task component split |
 | computer-use-runtime | omo-computer-use.js | First computer-use activation |
+| file-picker-runtime | omo-file-picker.js | First interactive session autocomplete setup |
 | desktop-toolkit-runtime | omo-desktop-toolkit.js | Toolkit discovery/runtime |
 | telemetry-posthog-runtime | omo-telemetry-posthog.js | First capture; newest 256 events replay in order; oldest drops reported once at flush/shutdown; failed imports back off 60 seconds |
 | telemetry-otlp-runtime | omo-telemetry-otlp.js | Lazy OTLP transport |

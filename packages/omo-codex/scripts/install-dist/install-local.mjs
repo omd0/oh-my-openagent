@@ -1,9 +1,5 @@
 #!/usr/bin/env node
-<<<<<<< HEAD
-// omo-codex-install:27235847060587b2f63fc71b69c1479868199399e3989611d5367fb6df16e826:e0a63b6554196482b4095c5bcb291881c4e8cb45b81d35ffd5b18be03330c763
-=======
-// omo-codex-install:7a9d966d5d8ec729d0d28b595a64b4d7e94cbd2ed04e728165f9988de252e64e:cd5ea4ae571a9759f34d5183015a125d3d7f23263ba0ab8b9663fd9e050d3280
->>>>>>> origin/dev
+// omo-codex-install:bc94b310af80652bc95265406311585e2cf07bc57237fc1d9fbbbb2cc1811ce3:8bb789a7ad8182f51cbc3482b38e2160fcd8ed25f59f6891fcd5fc7df05d9fff
 var __esm = (fn, res, err) => () => {
   if (fn)
     try {
@@ -13152,37 +13148,11 @@ function isRootSetting(line, key) {
 // packages/omo-codex/src/install/codex-model-catalog.ts
 import { readFile as readFile10 } from "node:fs/promises";
 import { join as join16 } from "node:path";
-<<<<<<< HEAD
-
-// packages/model-core/src/latest-models.ts
-var LATEST_MODEL_BY_FAMILY = {
-  claudeOpus: "claude-opus-5-5",
-  claudeSonnet: "claude-sonnet-5-5",
-  claudeHaiku: "claude-haiku-5-5",
-  claudeFable: "claude-fable-5-2",
-  gptAstra: "gpt-6.2-astra",
-  gptSol: "gpt-6.2-sol",
-  gptSolFast: "gpt-6.2-sol-fast",
-  gptLunaFast: "gpt-6-luna-fast",
-  glm: "glm-5.3",
-  glmFlash: "glm-5.3-flash",
-  kimi: "kimi-k3.1-pro",
-  kimiK3: "kimi-k3",
-  geminiPro: "gemini-4-argon"
-};
-
-// packages/omo-codex/src/install/codex-model-catalog.ts
-var FALLBACK_CODEX_MODEL_CATALOG = {
-  current: {
-    model: LATEST_MODEL_BY_FAMILY.gptAstra,
-    modelContextWindow: 1050000,
-=======
 var CODEX_ASTRA_MODEL = "gpt-6.2-astra";
 var FALLBACK_CODEX_MODEL_CATALOG = {
   current: {
     model: CODEX_ASTRA_MODEL,
     modelContextWindow: 600000,
->>>>>>> origin/dev
     modelReasoningEffort: "high",
     planModeReasoningEffort: "xhigh"
   },
@@ -20389,6 +20359,12 @@ var OmoFormatOnMutationSchema = OmoFormatOnMutationLayerSchema.extend({
   timeoutMs: number2().int().positive().default(3000)
 }).strict();
 
+// packages/omo-config-core/src/schema/file-picker.ts
+var OmoFilePickerSettingsSchema = object({
+  ignore_gitignore: union([boolean2(), literal("ask")]).optional()
+}).strict();
+var OmoFilePickerSettingsLayerSchema = OmoFilePickerSettingsSchema;
+
 // packages/omo-config-core/src/schema/provenance.ts
 var OmoProvenanceSettingsSchema = object({
   workspaces: array(object({
@@ -20423,6 +20399,7 @@ var OmoTypedHarnessConfigSchema = object({
   session_wake: OmoSessionWakeSettingsSchema.optional(),
   operator_alerts: OmoOperatorAlertsSettingsSchema.optional(),
   formatOnMutation: OmoFormatOnMutationLayerSchema.optional(),
+  file_picker: OmoFilePickerSettingsLayerSchema.optional(),
   categories: OmoCategoriesConfigSchema.optional(),
   agents: OmoAgentsConfigSchema.optional(),
   git_master: OmoGitMasterSettingsLayerSchema.optional(),
@@ -20446,6 +20423,7 @@ var OmoConfigProfileSchema = object({
   session_wake: OmoSessionWakeSettingsSchema.optional(),
   operator_alerts: OmoOperatorAlertsSettingsSchema.optional(),
   formatOnMutation: OmoFormatOnMutationLayerSchema.optional(),
+  file_picker: OmoFilePickerSettingsLayerSchema.optional(),
   categories: OmoCategoriesConfigSchema.optional(),
   agents: OmoAgentsConfigSchema.optional(),
   git_master: OmoGitMasterSettingsLayerSchema.optional(),
@@ -20473,6 +20451,7 @@ var OmoConfigSchema = object({
   session_wake: OmoSessionWakeSettingsSchema.optional(),
   operator_alerts: OmoOperatorAlertsSettingsSchema.optional(),
   formatOnMutation: OmoFormatOnMutationSchema.optional(),
+  file_picker: OmoFilePickerSettingsSchema.optional(),
   $schema: string2().optional(),
   categories: OmoCategoriesConfigSchema.optional(),
   agents: OmoAgentsConfigSchema.optional(),
@@ -20504,6 +20483,7 @@ var OmoConfigLayerSchema = object({
   session_wake: OmoSessionWakeSettingsSchema.optional(),
   operator_alerts: OmoOperatorAlertsSettingsSchema.optional(),
   formatOnMutation: OmoFormatOnMutationLayerSchema.optional(),
+  file_picker: OmoFilePickerSettingsLayerSchema.optional(),
   $schema: string2().optional(),
   categories: OmoCategoriesConfigSchema.optional(),
   agents: OmoAgentsConfigSchema.optional(),

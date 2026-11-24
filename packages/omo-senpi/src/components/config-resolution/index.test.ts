@@ -26,6 +26,21 @@ afterEach(() => {
 })
 
 describe("loadSenpiOmoConfig", () => {
+  test("#given a Native file-picker preference #when the Senpi view loads #then the setting remains available to the picker", () => {
+    // given
+    const { home, project } = fixture()
+    writeConfig(home, {
+      "[native]": { file_picker: { ignore_gitignore: "ask" } },
+    })
+
+    // when
+    const result = loadSenpiOmoConfig({ cwd: project, env: { HOME: home }, platform: "linux" })
+
+    // then
+    expect(result.config.file_picker?.ignore_gitignore).toBe("ask")
+    expect(result.diagnostics).toEqual([])
+  })
+
   test("#given the current top-level-only Senpi categories and agents config #when resolved #then it preserves the established configuration exactly", () => {
     // given
     const { home, project } = fixture()

@@ -126,6 +126,23 @@
       },
       "additionalProperties": false
     },
+    "file_picker": {
+      "type": "object",
+      "properties": {
+        "ignore_gitignore": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string",
+              "const": "ask"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
     "$schema": {
       "type": "string"
     },
@@ -2916,6 +2933,23 @@
           },
           "additionalProperties": false
         },
+        "file_picker": {
+          "type": "object",
+          "properties": {
+            "ignore_gitignore": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string",
+                  "const": "ask"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
         "categories": {
           "type": "object",
           "propertyNames": {
@@ -5471,6 +5505,23 @@
           },
           "additionalProperties": false
         },
+        "file_picker": {
+          "type": "object",
+          "properties": {
+            "ignore_gitignore": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string",
+                  "const": "ask"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
         "categories": {
           "type": "object",
           "propertyNames": {
@@ -8022,6 +8073,23 @@
               "type": "integer",
               "exclusiveMinimum": 0,
               "maximum": 9007199254740991
+            }
+          },
+          "additionalProperties": false
+        },
+        "file_picker": {
+          "type": "object",
+          "properties": {
+            "ignore_gitignore": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string",
+                  "const": "ask"
+                }
+              ]
             }
           },
           "additionalProperties": false
@@ -10587,6 +10655,23 @@
             },
             "additionalProperties": false
           },
+          "file_picker": {
+            "type": "object",
+            "properties": {
+              "ignore_gitignore": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "string",
+                    "const": "ask"
+                  }
+                ]
+              }
+            },
+            "additionalProperties": false
+          },
           "categories": {
             "type": "object",
             "propertyNames": {
@@ -13138,6 +13223,23 @@
                     "type": "integer",
                     "exclusiveMinimum": 0,
                     "maximum": 9007199254740991
+                  }
+                },
+                "additionalProperties": false
+              },
+              "file_picker": {
+                "type": "object",
+                "properties": {
+                  "ignore_gitignore": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "string",
+                        "const": "ask"
+                      }
+                    ]
                   }
                 },
                 "additionalProperties": false
@@ -15697,6 +15799,23 @@
                 },
                 "additionalProperties": false
               },
+              "file_picker": {
+                "type": "object",
+                "properties": {
+                  "ignore_gitignore": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "string",
+                        "const": "ask"
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              },
               "categories": {
                 "type": "object",
                 "propertyNames": {
@@ -18248,6 +18367,23 @@
                     "type": "integer",
                     "exclusiveMinimum": 0,
                     "maximum": 9007199254740991
+                  }
+                },
+                "additionalProperties": false
+              },
+              "file_picker": {
+                "type": "object",
+                "properties": {
+                  "ignore_gitignore": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "string",
+                        "const": "ask"
+                      }
+                    ]
                   }
                 },
                 "additionalProperties": false

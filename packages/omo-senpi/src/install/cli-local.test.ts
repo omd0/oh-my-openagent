@@ -26,6 +26,7 @@ async function makePackagedPlugin(): Promise<string> {
     "export const createTaskComponent = () => ({})\n",
   )
   await writeFixtureFile(join(pluginPath, "extensions", "omo-computer-use.js"), "export {}\n")
+  await writeFixtureFile(join(pluginPath, "extensions", "omo-file-picker.js"), "export {}\n")
   await writeFixtureFile(join(pluginPath, "extensions", "omo-memory-doctor.js"), "export {}\n")
   await writeFixtureFile(join(pluginPath, "extensions", "omo-memory-memfs.js"), "export {}\n")
   await writeFixtureFile(join(pluginPath, "extensions", "omo-memory-palace.js"), "export {}\n")

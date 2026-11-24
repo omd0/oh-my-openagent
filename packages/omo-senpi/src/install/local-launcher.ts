@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-import { chmodSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
-=======
 import { chmodSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
->>>>>>> origin/dev
 import { homedir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 
@@ -17,12 +13,6 @@ import { LAUNCHER_CMD_SHIM, LAUNCHER_HEADER, launcherCmdOwnership, launcherOwner
  * present the same product: without it the local route boots as senpi with an omo extension.
  */
 
-<<<<<<< HEAD
-const MARKER = "omo-local-launcher"
-const COMMANDS = ["omo", "pi"] as const
-
-=======
->>>>>>> origin/dev
 export interface LocalLauncherOptions {
   readonly env?: Readonly<Record<string, string | undefined>>
   readonly homeDir?: string
@@ -36,17 +26,9 @@ export function localLauncherPath(homeDir: string = homedir()): string {
   return join(homeDir, ".local", "bin", "omo")
 }
 
-function localCommandPath(command: (typeof COMMANDS)[number], homeDir: string): string {
-  return join(homeDir, ".local", "bin", command)
-}
-
 /** Windows cannot execute an extensionless shebang script, so it gets a resolvable wrapper. */
 export function localLauncherCmdPath(homeDir: string = homedir()): string {
   return join(homeDir, ".local", "bin", "omo.cmd")
-}
-
-function localCommandCmdPath(command: (typeof COMMANDS)[number], homeDir: string): string {
-  return join(homeDir, ".local", "bin", `${command}.cmd`)
 }
 
 /** The npm channel a build ships on: a prerelease version is on beta, a stable one on latest. */
@@ -132,32 +114,6 @@ child.on("close", (code, signal) => {
  * the `omo.cmd` wrapper is written beside it, never over a wrapper the installer did not write.
  */
 export function installLocalLauncher(options: LocalLauncherOptions): string | undefined {
-<<<<<<< HEAD
-  const homeDir = options.homeDir ?? homedir()
-  const windows = (options.platform ?? process.platform) === "win32"
-  let omoInstalled = false
-  for (const command of COMMANDS) {
-    const path = localCommandPath(command, homeDir)
-    const commandOwned = isOwnedCommand(path)
-    if (!canWriteOwnedCommand(path)) {
-      console.warn(`omo: refusing to replace foreign local launcher at ${path}`)
-      continue
-    }
-    const cmdPath = localCommandCmdPath(command, homeDir)
-    const legacyOmoWrapperOwned = command === "omo" && commandOwned && isLegacyOmoCmdWrapper(cmdPath)
-    if (windows && !canWriteOwnedCommand(cmdPath, true) && !legacyOmoWrapperOwned) {
-      console.warn(`omo: refusing to replace foreign local launcher wrapper at ${cmdPath}`)
-      continue
-    }
-
-    mkdirSync(dirname(path), { recursive: true })
-    writeFileSync(path, renderLocalLauncher(options))
-    chmodSync(path, 0o755)
-    if (windows) {
-      writeFileSync(cmdPath, `@echo off\r\nrem ${MARKER}\r\nnode "%~dp0${command}" %*\r\n`)
-    }
-    if (command === "omo") omoInstalled = true
-=======
   const path = localLauncherPath(options.homeDir)
   if (launcherOwnership(path).kind === "foreign") return undefined
 
@@ -167,62 +123,12 @@ export function installLocalLauncher(options: LocalLauncherOptions): string | un
   if ((options.platform ?? process.platform) === "win32") {
     const cmd = localLauncherCmdPath(options.homeDir)
     if (launcherCmdOwnership(cmd).kind !== "foreign") writeFileSync(cmd, LAUNCHER_CMD_SHIM)
->>>>>>> origin/dev
   }
-  return omoInstalled ? localLauncherPath(homeDir) : undefined
+  return path
 }
 
 /** Removes the launcher and its `omo.cmd` wrapper, but only files this installer wrote. */
 export function uninstallLocalLauncher(homeDir: string = homedir()): boolean {
-<<<<<<< HEAD
-  let removed = false
-  for (const command of COMMANDS) {
-    const path = resolve(localCommandPath(command, homeDir))
-    const commandOwned = isOwnedCommand(path)
-    const cmdPath = localCommandCmdPath(command, homeDir)
-    const wrapperOwned = isOwnedCommand(cmdPath, true)
-      || (command === "omo" && commandOwned && isLegacyOmoCmdWrapper(cmdPath))
-    if (commandOwned) {
-      rmSync(path)
-      removed = true
-    }
-    if (wrapperOwned) {
-      rmSync(cmdPath)
-      removed = true
-    }
-  }
-  return removed
-}
-
-function canWriteOwnedCommand(path: string, wrapper = false): boolean {
-  try {
-    const stats = lstatSync(path)
-    return stats.isFile() && isOwnedCommand(path, wrapper)
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return true
-    return false
-  }
-}
-
-function isLegacyOmoCmdWrapper(path: string): boolean {
-  try {
-    const stats = lstatSync(path)
-    return stats.isFile() && readFileSync(path, "utf8") === '@echo off\r\nnode "%~dp0omo" %*\r\n'
-  } catch {
-    return false
-  }
-}
-
-function isOwnedCommand(path: string, wrapper = false): boolean {
-  try {
-    const stats = lstatSync(path)
-    if (!stats.isFile()) return false
-    const source = readFileSync(path, "utf8")
-    return wrapper ? source.includes(`rem ${MARKER}`) : source.includes(MARKER)
-  } catch {
-    return false
-  }
-=======
   const path = resolve(localLauncherPath(homeDir))
   if (launcherOwnership(path).kind !== "owned") return false
 
@@ -230,5 +136,4 @@ function isOwnedCommand(path: string, wrapper = false): boolean {
   const cmd = localLauncherCmdPath(homeDir)
   if (launcherCmdOwnership(cmd).kind === "owned") rmSync(cmd)
   return true
->>>>>>> origin/dev
 }

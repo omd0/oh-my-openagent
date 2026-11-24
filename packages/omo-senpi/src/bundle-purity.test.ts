@@ -26,6 +26,7 @@ const builtDeviceServiceExtensionPath = join(packageRoot, "plugin", "extensions"
 const builtTelemetryPosthogExtensionPath = join(packageRoot, "plugin", "extensions", "omo-telemetry-posthog.js")
 const builtTelemetryOtlpExtensionPath = join(packageRoot, "plugin", "extensions", "omo-telemetry-otlp.js")
 const builtComputerUseExtensionPath = join(packageRoot, "plugin", "extensions", "omo-computer-use.js")
+const builtFilePickerExtensionPath = join(packageRoot, "plugin", "extensions", "omo-file-picker.js")
 const builtTelemetryRecoveryExtensionPath = join(packageRoot, "plugin", "extensions", "omo-telemetry-recovery.js")
 
 const EXPECTED_SENPI_LOADER_ALIASES = [
@@ -105,6 +106,7 @@ describe("omo-senpi bundle purity", () => {
       builtExtensionPath,
       builtTaskExtensionPath,
       builtComputerUseExtensionPath,
+      builtFilePickerExtensionPath,
       builtMemoryDoctorExtensionPath,
       builtMemoryMemfsExtensionPath,
       builtMemoryPalaceExtensionPath,

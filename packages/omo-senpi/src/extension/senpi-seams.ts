@@ -16,6 +16,7 @@ export const SENPI_SEAMS = {
   events: "object",
   "events.emit": "function",
   "events.on": "function",
+  exec: "function",
   getAllTools: "function",
   getCommands: "function",
   getPermissionPreset: "function",

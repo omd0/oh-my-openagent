@@ -32,6 +32,7 @@ export const REQUIRED_PLUGIN_ARTIFACTS: readonly string[] = [
   join("extensions", "omo-feedback.js"),
   join("extensions", "omo-desktop-toolkit.js"),
   join("extensions", "omo-claim-receipt.js"),
+  join("extensions", "omo-file-picker.js"),
   join("extensions", "assets.generated.json"),
   join("extensions", "omo-member.js"),
   join("extensions", "memory-run-supervisor.mjs"),
@@ -138,11 +139,13 @@ async function verifyAstGrepRuntimeIntegrity(pluginPath: string, platform: NodeJ
   let runtimeStat
   try {
     runtimeStat = await stat(runtimeEntry)
-    if (!runtimeStat.isFile()) throw new Error("runtime is not a file")
     await access(runtimeEntry, constants.R_OK | constants.X_OK)
   } catch (error) {
+    if (!(error instanceof Error) || !("code" in error)) throw error
     throw astGrepIntegrityError(runtimeEntry, `runtime is unreadable or non-executable: ${messageOf(error)}`)
   }
+  if (!runtimeStat.isFile())
+    throw astGrepIntegrityError(runtimeEntry, "runtime is unreadable or non-executable: runtime is not a file")
 
   if (!(await fileExists(manifestPath))) {
     throw astGrepIntegrityError(runtimeEntry, `manifest is missing: ${manifestPath}`)
@@ -152,6 +155,7 @@ async function verifyAstGrepRuntimeIntegrity(pluginPath: string, platform: NodeJ
   try {
     manifest = JSON.parse(await readFile(manifestPath, "utf8"))
   } catch (error) {
+    if (!(error instanceof SyntaxError) && !(error instanceof Error && "code" in error)) throw error
     throw astGrepIntegrityError(runtimeEntry, `manifest is unreadable or invalid JSON: ${messageOf(error)}`)
   }
   if (!isAstGrepRuntimeManifest(manifest)) {
@@ -164,6 +168,7 @@ async function verifyAstGrepRuntimeIntegrity(pluginPath: string, platform: NodeJ
       .update(await readFile(runtimeEntry))
       .digest("hex")
   } catch (error) {
+    if (!(error instanceof Error) || !("code" in error)) throw error
     throw astGrepIntegrityError(runtimeEntry, `runtime hash could not be computed: ${messageOf(error)}`)
   }
   if (actualSha256 !== manifest.sha256) {

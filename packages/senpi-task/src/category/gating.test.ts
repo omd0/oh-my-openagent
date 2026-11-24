@@ -118,11 +118,7 @@ describe("category activation gating", () => {
     })
   })
 
-<<<<<<< HEAD
-  describe("#given a builtin category gated on gpt-6.2-astra or gpt-5.6-sol", () => {
-=======
   describe("#given ultrabrain gated on gpt-6.2-astra alone", () => {
->>>>>>> origin/dev
     test("#when the registry offers only cross-family models #then ultrabrain is unavailable and never falls back", () => {
       // given
       const models = registry(MODELS_THE_PRE_GATING_CHAINS_WOULD_HAVE_ACCEPTED)
@@ -137,11 +133,7 @@ describe("category activation gating", () => {
       expect(result.availableCategories).not.toContain("ultrabrain")
     })
 
-<<<<<<< HEAD
-    test("#when the registry offers gpt-6.2-astra alone #then ultrabrain resolves on it at max", () => {
-=======
     test("#when the registry offers gpt-6.2-astra on the API lane #then ultrabrain resolves on it at max", () => {
->>>>>>> origin/dev
       // given
       const models = registry([model("openai", "gpt-6.2-astra")])
 

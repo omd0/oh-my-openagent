@@ -448,13 +448,8 @@ describe("builtin category defaults", () => {
     // then: availability gating applies only to the model-gated builtins; any listed id opens the gate
     expect(BUILTIN_CATEGORY_REQUIRES_MODEL).toEqual({
       architect: ["claude-fable-5-2", "claude-fable-5-1"],
-<<<<<<< HEAD
-      ultrabrain: ["gpt-6.2-astra", "gpt-5.6-sol"],
-      "deep-low": ["gpt-6.2-sol", "gpt-6.2-sol-fast", "gpt-5.6-sol-fast", "gpt-5.6-sol"],
-=======
       ultrabrain: ["gpt-6.2-astra"],
       "deep-low": ["gpt-6.2-sol"],
->>>>>>> origin/dev
       "deep-high": ["gpt-6.2-astra"],
     })
 

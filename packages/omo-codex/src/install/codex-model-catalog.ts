@@ -23,13 +23,8 @@ export const CODEX_ASTRA_MODEL = "gpt-6.2-astra"
 
 const FALLBACK_CODEX_MODEL_CATALOG: CodexModelCatalog = {
   current: {
-<<<<<<< HEAD
-    model: LATEST_MODEL_BY_FAMILY.gptAstra,
-    modelContextWindow: 1_050_000,
-=======
     model: CODEX_ASTRA_MODEL,
     modelContextWindow: 600_000,
->>>>>>> origin/dev
     modelReasoningEffort: "high",
     planModeReasoningEffort: "xhigh",
   },

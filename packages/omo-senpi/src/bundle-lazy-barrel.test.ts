@@ -16,6 +16,7 @@ const BUNDLE_FILES = [
   "memory-run-supervisor.mjs",
   "omo-init-deep-advisor.js",
   "omo-computer-use.js",
+  "omo-file-picker.js",
   "omo-side-panel.js",
   "omo-onboarding-scan.js",
   "omo-memory-doctor.js",
@@ -58,6 +59,11 @@ const LAZY_BARRELS: readonly LazyBarrel[] = [
 ]
 
 describe("built bundles keep their lazy barrels loadable", () => {
+  it("#given the picker runtime is split from the entry #when the built bundle is inspected #then the lazy sidecar import is present", () => {
+    const mainBundle = readBundle("omo.js")
+    expect(countDynamicImports(mainBundle, "#omo-file-picker-runtime")).toBeGreaterThan(0)
+  })
+
   it("keeps omo-task's pi-tui warm-up in the published artifact (#7355)", () => {
     const taskBundle = readBundle("omo-task.js")
     expect(countDynamicImports(taskBundle, "@earendil-works/pi-tui")).toBeGreaterThan(0)

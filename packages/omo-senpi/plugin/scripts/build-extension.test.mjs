@@ -808,11 +808,13 @@ describe("checkExtensionCurrent", () => {
     expect(main).toContain('import("#omo-feedback-runtime")')
     expect(main).toContain('import("#omo-desktop-toolkit-runtime")')
     expect(main).toContain('import("#omo-claim-receipt-runtime")')
+    expect(main).toContain('import("#omo-file-picker-runtime")')
     expect(task).toMatch(/^\/\/ omo:[A-Za-z0-9_-]{43}:[A-Za-z0-9_-]{43}/)
     expect(main).not.toContain('import("#omo-agent-toolkit-runtime")')
     expect(manifest.imports).not.toHaveProperty("#omo-agent-toolkit-runtime")
     expect(manifest.imports).toEqual({
       "#omo-task-runtime": "./extensions/omo-task.js",
+      "#omo-file-picker-runtime": "./extensions/omo-file-picker.js",
       "#omo-computer-use-runtime": "./extensions/omo-computer-use.js",
       "#omo-memory-doctor-runtime": "./extensions/omo-memory-doctor.js",
       "#omo-memory-memfs-runtime": "./extensions/omo-memory-memfs.js",

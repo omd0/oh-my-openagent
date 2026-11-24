@@ -166,6 +166,7 @@ const telemetryRecoveryEntryPath = join(packageRoot, "src", "components", "telem
 const feedbackEntryPath = join(packageRoot, "src", "components", "feedback", "runtime.ts")
 const desktopToolkitEntryPath = join(packageRoot, "src", "components", "desktop-toolkit", "runtime.ts")
 const claimReceiptEntryPath = join(packageRoot, "src", "components", "claim-receipt", "runtime.ts")
+const filePickerRuntimeEntryPath = join(packageRoot, "src", "components", "file-picker", "runtime.ts")
 const memoryDoctorOutputPath = join(
   process.env.OMO_SENPI_PLUGIN_OUTPUT ?? pluginRoot,
   "extensions",
@@ -239,6 +240,11 @@ const claimReceiptOutputPath = join(
   "extensions",
   "omo-claim-receipt.js",
 )
+const filePickerRuntimeOutputPath = join(
+  process.env.OMO_SENPI_PLUGIN_OUTPUT ?? pluginRoot,
+  "extensions",
+  "omo-file-picker.js",
+)
 // The computer-use prelude JSON: bundled modules read it from beside the bundle (extensions/), the
 // same contract as the staged personas, so omo.js carries none of the ~29 KB of prelude text (#9113).
 export const COMPUTER_PRELUDE_ASSET_NAME = "assets.generated.json"
@@ -275,6 +281,7 @@ const externalSpecifiers = [
   // telemetry-core loads its immediate sender through this import; the plugin manifest maps it to the recovery sidecar.
   "#telemetry-immediate-send",
   "#omo-feedback-runtime",
+  "#omo-file-picker-runtime",
   "#omo-claim-receipt-runtime",
   "#omo-agent-toolkit-sdk",
   "#bunshin-ts",
@@ -346,6 +353,7 @@ export const extensionBuildPaths = {
   feedbackOutputPath,
   desktopToolkitOutputPath,
   claimReceiptOutputPath,
+  filePickerRuntimeOutputPath,
   gatewayStoreWorkerOutputPath,
 }
 
@@ -412,6 +420,11 @@ export function resolveOutputs(options) {
     feedbackOutput: sibling(options.feedbackOutputPath, feedbackOutputPath, "omo-feedback.js"),
     desktopToolkitOutput: sibling(options.desktopToolkitOutputPath, desktopToolkitOutputPath, "omo-desktop-toolkit.js"),
     claimReceiptOutput: sibling(options.claimReceiptOutputPath, claimReceiptOutputPath, "omo-claim-receipt.js"),
+    filePickerRuntimeOutput: sibling(
+      options.filePickerRuntimeOutputPath,
+      filePickerRuntimeOutputPath,
+      "omo-file-picker.js",
+    ),
     computerUseOutput: sibling(options.computerUseOutputPath, computerUseOutputPath, "omo-computer-use.js"),
     gatewayStoreWorkerOutput: sibling(
       options.gatewayStoreWorkerOutputPath,
@@ -461,6 +474,7 @@ export async function buildExtension(options = {}) {
     feedbackOutput,
     desktopToolkitOutput,
     claimReceiptOutput,
+    filePickerRuntimeOutput,
     gatewayStoreWorkerOutput,
   } = resolveOutputs(options)
   const toolkitSdkInputs = await buildEntry(toolkitSdkEntryPath, toolkitSdkOutput, buildDefines, sdkExternalSpecifiers)
@@ -507,6 +521,7 @@ export async function buildExtension(options = {}) {
   const feedbackInputs = await buildEntry(feedbackEntryPath, feedbackOutput, buildDefines)
   const desktopToolkitInputs = await buildEntry(desktopToolkitEntryPath, desktopToolkitOutput, buildDefines)
   const claimReceiptInputs = await buildEntry(claimReceiptEntryPath, claimReceiptOutput, buildDefines)
+  const filePickerRuntimeInputs = await buildEntry(filePickerRuntimeEntryPath, filePickerRuntimeOutput, buildDefines)
   const computerUseInputs = await buildEntry(computerUseEntryPath, computerUseOutput, buildDefines)
   const computerRunWorkerInputs = await buildEntry(
     computerRunWorkerEntryPath,
@@ -565,6 +580,7 @@ export async function buildExtension(options = {}) {
     feedbackInputs,
     desktopToolkitInputs,
     claimReceiptInputs,
+    filePickerRuntimeInputs,
     gatewayStoreWorkerInputs,
     threadSdkInputs,
   }

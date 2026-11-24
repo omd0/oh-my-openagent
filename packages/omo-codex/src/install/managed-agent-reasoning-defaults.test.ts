@@ -3,13 +3,9 @@ import { describe, expect, test } from "bun:test"
 import { resolveManagedAgentReasoning } from "./managed-agent-reasoning-defaults"
 
 describe("resolveManagedAgentReasoning", () => {
-<<<<<<< HEAD
-  const bundled = { bundledModel: "gpt-6.2-astra", bundledEffort: "low" }
-=======
   const bundled = { bundledModel: "gpt-6-luna", bundledEffort: "low" }
   const bundledModelFor = (agentName: string) =>
     agentName === "explorer" || agentName === "librarian" ? "gpt-6-luna" : "gpt-6.2-astra"
->>>>>>> origin/dev
 
   test.each([
     ["explorer", "gpt-5.6-luna", "low", "low"],
@@ -38,11 +34,7 @@ describe("resolveManagedAgentReasoning", () => {
       expect(
         resolveManagedAgentReasoning({
           agentName,
-<<<<<<< HEAD
-          bundledModel: "gpt-6.2-astra",
-=======
           bundledModel: bundledModelFor(agentName),
->>>>>>> origin/dev
           bundledEffort: expected,
           preserved: { model, effort },
         }),

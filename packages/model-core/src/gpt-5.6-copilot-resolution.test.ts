@@ -4,29 +4,8 @@ import { AGENT_MODEL_REQUIREMENTS, CATEGORY_MODEL_REQUIREMENTS } from "./model-r
 import { resolveModelWithFallback } from "./model-resolver"
 
 describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
-<<<<<<< HEAD
-  test("ultrabrain and deep-high prefer Copilot Astra when available", () => {
-    const availableModels = new Set(["github-copilot/gpt-6.2-astra", "github-copilot/gpt-5.6-sol"])
-    expect(
-      resolveModelWithFallback({
-        fallbackChain: CATEGORY_MODEL_REQUIREMENTS.ultrabrain.fallbackChain,
-        availableModels,
-        systemDefaultModel: "system/default",
-      }),
-    ).toMatchObject({ model: "github-copilot/gpt-6.2-astra", variant: "max" })
-    expect(
-      resolveModelWithFallback({
-        fallbackChain: CATEGORY_MODEL_REQUIREMENTS["deep-high"].fallbackChain,
-        availableModels,
-        systemDefaultModel: "system/default",
-      }),
-    ).toMatchObject({ model: "github-copilot/gpt-6.2-astra", variant: "high" })
-  })
-
-=======
->>>>>>> origin/dev
   test("unspecified-high never borrows Copilot Astra: it takes the Copilot Opus 5.5 rung, and without it falls to the system default", () => {
-    const withOpus = new Set(["github-copilot/gpt-6.2-astra", "github-copilot/claude-opus-5-5"])
+    const withOpus = new Set(["github-copilot/gpt-6-astra", "github-copilot/claude-opus-5-5"])
     expect(
       resolveModelWithFallback({
         fallbackChain: CATEGORY_MODEL_REQUIREMENTS["unspecified-high"].fallbackChain,
@@ -35,7 +14,7 @@ describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
       }),
     ).toMatchObject({ model: "github-copilot/claude-opus-5-5", variant: "medium" })
 
-    const gptOnly = new Set(["github-copilot/gpt-6.2-astra", "github-copilot/gpt-5.6-sol"])
+    const gptOnly = new Set(["github-copilot/gpt-6-astra", "github-copilot/gpt-5.6-sol"])
     expect(
       resolveModelWithFallback({
         fallbackChain: CATEGORY_MODEL_REQUIREMENTS["unspecified-high"].fallbackChain,
@@ -68,31 +47,10 @@ describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
     {
       name: "momus",
       requirement: AGENT_MODEL_REQUIREMENTS.momus,
-      expectedModel: "github-copilot/gpt-6.2-astra",
+      expectedModel: "github-copilot/gpt-6-astra",
       expectedVariant: "high",
     },
     {
-<<<<<<< HEAD
-      name: "ultrabrain",
-      requirement: CATEGORY_MODEL_REQUIREMENTS.ultrabrain,
-      expectedModel: "github-copilot/gpt-6.2-astra",
-      expectedVariant: "max",
-    },
-    {
-      name: "deep-low",
-      requirement: CATEGORY_MODEL_REQUIREMENTS["deep-low"],
-      expectedModel: "github-copilot/gpt-5.6-sol",
-      expectedVariant: "medium",
-    },
-    {
-      name: "deep-high",
-      requirement: CATEGORY_MODEL_REQUIREMENTS["deep-high"],
-      expectedModel: "github-copilot/gpt-6.2-astra",
-      expectedVariant: "high",
-    },
-    {
-=======
->>>>>>> origin/dev
       name: "unspecified-low",
       requirement: CATEGORY_MODEL_REQUIREMENTS["unspecified-low"],
       expectedModel: "github-copilot/gpt-5.6-sol",
@@ -123,7 +81,7 @@ describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
 
   test("warm cache does not pick up a transformed Vercel Astra now that vercel left the default lanes", () => {
     // given
-    const availableModels = new Set(["vercel/openai/gpt-6.2-astra"])
+    const availableModels = new Set(["vercel/openai/gpt-6-astra"])
 
     // when
     const result = resolveModelWithFallback({
@@ -142,7 +100,7 @@ describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
 
   test("warm cache prefers the Copilot rung over a transformed Vercel astra", () => {
     // given
-    const availableModels = new Set(["github-copilot/gpt-6.2-astra", "vercel/openai/gpt-6.2-astra"])
+    const availableModels = new Set(["github-copilot/gpt-6-astra", "vercel/openai/gpt-6-astra"])
 
     // when
     const result = resolveModelWithFallback({
@@ -153,22 +111,12 @@ describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
 
     // then
     expect(result).toEqual({
-      model: "github-copilot/gpt-6.2-astra",
+      model: "github-copilot/gpt-6-astra",
       source: "provider-fallback",
       variant: "high",
     })
   })
 
-<<<<<<< HEAD
-  test("Copilot keeps the GPT-6 Astra max tier because no Copilot cap applies", () => {
-    const entries = CATEGORY_MODEL_REQUIREMENTS.ultrabrain.fallbackChain.filter(
-      ({ model, providers }) => model === "gpt-6.2-astra" && providers.includes("github-copilot"),
-    )
-    expect(entries).toEqual([{ providers: ["github-copilot"], model: "gpt-6.2-astra", variant: "max" }])
-  })
-
-=======
->>>>>>> origin/dev
   test("Copilot is never included in a GPT-5.6 xhigh rung", () => {
     // given
     const requirements = [...Object.values(AGENT_MODEL_REQUIREMENTS), ...Object.values(CATEGORY_MODEL_REQUIREMENTS)]
@@ -187,7 +135,7 @@ describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
 
   test("momus prefers native Astra xhigh over the Copilot Astra rung when both are available", () => {
     // given
-    const availableModels = new Set(["chatgpt-subscription/gpt-6.2-astra", "github-copilot/gpt-6.2-astra"])
+    const availableModels = new Set(["chatgpt-subscription/gpt-6-astra", "github-copilot/gpt-6-astra"])
 
     // when
     const result = resolveModelWithFallback({
@@ -198,7 +146,7 @@ describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
 
     // then
     expect(result).toEqual({
-      model: "chatgpt-subscription/gpt-6.2-astra",
+      model: "chatgpt-subscription/gpt-6-astra",
       source: "provider-fallback",
       variant: "xhigh",
     })

@@ -20,6 +20,29 @@ function makeConfigFixture(): { readonly cwd: string; readonly homeDir: string; 
 }
 
 describe("omo config schema", () => {
+  test("#given the native file-picker policy #when config scopes are parsed #then the ignore, include, and ask modes are preserved", () => {
+    // given
+    const picker = { file_picker: { ignore_gitignore: "ask" } }
+
+    // when
+    const results = {
+      config: OmoConfigSchema.parse({ "[native]": picker }),
+      harness: OmoTypedHarnessConfigSchema.parse(picker),
+      layer: OmoConfigLayerSchema.parse({ "[native]": picker }),
+      profile: OmoConfigProfileSchema.parse({ "[native]": picker }),
+    }
+    const invalid = OmoTypedHarnessConfigSchema.safeParse({
+      file_picker: { ignore_gitignore: "sometimes" },
+    })
+
+    // then
+    expect(results.config["[native]"]?.file_picker?.ignore_gitignore).toBe("ask")
+    expect(results.harness.file_picker?.ignore_gitignore).toBe("ask")
+    expect(results.layer["[native]"]?.file_picker?.ignore_gitignore).toBe("ask")
+    expect(results.profile["[native]"]?.file_picker?.ignore_gitignore).toBe("ask")
+    expect(invalid.success).toBe(false)
+  })
+
   test("#given an empty formatOnMutation config #when parsed #then formatter defaults are available", () => {
     expect(OmoConfigSchema.parse({ formatOnMutation: {} }).formatOnMutation).toEqual({
       mode: "best-effort",

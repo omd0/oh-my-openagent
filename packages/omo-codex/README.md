@@ -39,11 +39,7 @@ The installer copies the built plugin into `~/.codex/plugins/cache/sisyphuslabs/
 
 ### Default model
 
-<<<<<<< HEAD
-The managed catalog (`plugin/model-catalog.json`, version `2026-11-18.gpt-6.2-astra-1050k-high`) sets the root model to `gpt-6.2-astra` with `model_context_window = 1050000`, `model_reasoning_effort = "high"`, and `plan_mode_reasoning_effort = "xhigh"`. The 12 bundled agent TOMLs also run on `gpt-6.2-astra`, each keeping its own reasoning effort. A config still on a managed legacy profile (the gpt-5.5 entries, `legacy.gpt-5.6-sol-650k-high`, or `legacy.2026-09-08.gpt-6-astra-600k-high`) is upgraded to the current values; any other root model you picked yourself is preserved. `lazycodex-ai` is the npm/bin alias and `lazycodex` is the marketplace repository; the marketplace identity remains `sisyphuslabs`.
-=======
 The managed catalog (`plugin/model-catalog.json`, version `2026-11-20.gpt-6.2-astra-600k-high`) sets the root model to `gpt-6.2-astra` with `model_context_window = 600000`, `model_reasoning_effort = "high"`, and `plan_mode_reasoning_effort = "xhigh"`. Ten bundled agent TOMLs also run on `gpt-6.2-astra` and the `explorer` / `librarian` recon roles on `gpt-6-luna`, each keeping its own reasoning effort. A config still on a managed legacy profile (the gpt-5.5 entries, `legacy.gpt-5.6-sol-650k-high` for `gpt-5.6-sol` at 650k / high / xhigh, or `legacy.gpt-6-astra-600k-high` for the previous `gpt-6-astra` default at 600k / high / xhigh) is upgraded to the current values; any other root model you picked yourself is preserved. `lazycodex-ai` is the npm/bin alias and `lazycodex` is the marketplace repository; the marketplace identity remains `sisyphuslabs`.
->>>>>>> origin/dev
 
 To remove managed Codex Light state, run `npx lazycodex-ai uninstall`. The backward-compatible alias is `npx lazycodex-ai cleanup`. Uninstall removes managed `sisyphuslabs` cache/marketplace directories, strips OMO marketplace/plugin/hook-state config blocks with a backup, removes managed agent TOML files from `~/.codex/agents/`, and repairs the known project-local legacy `.codex/config.toml` conflict while leaving project-owned `.codex` files in place.
 
@@ -94,11 +90,7 @@ To install both editions in one command, use `--platform=both`.
 
 ### Subagent model and reasoning
 
-<<<<<<< HEAD
-The bundled agent TOMLs ship LazyCodex defaults (currently `gpt-6.2-astra`). To pick another model per role durably, set it in `~/.omo/omo.jsonc`; every reinstall and marketplace bootstrap re-applies it, and deleting the entry restores the bundled default:
-=======
 The bundled agent TOMLs ship LazyCodex defaults (currently `gpt-6.2-astra`, with `gpt-6-luna` for `explorer` and `librarian`). To pick another model per role durably, set it in `~/.omo/omo.jsonc`; every reinstall and marketplace bootstrap re-applies it, and deleting the entry restores the bundled default:
->>>>>>> origin/dev
 
 ```jsonc
 { "[codex]": { "agents": { "explorer": { "model": "gpt-6-luna", "reasoning": "low" } } } }

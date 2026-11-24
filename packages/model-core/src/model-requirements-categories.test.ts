@@ -6,84 +6,6 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
     expect(CATEGORY_MODEL_REQUIREMENTS["writing"].requiresAnyModel).toBe(true)
   })
 
-<<<<<<< HEAD
-  test("ultrabrain routes GPT-6 Astra max before the existing Sol max fallbacks", () => {
-    expect(CATEGORY_MODEL_REQUIREMENTS.ultrabrain.fallbackChain).toEqual([
-      { providers: ["openai", "chatgpt-subscription"], model: "gpt-6.2-astra", variant: "max" },
-      { providers: ["github-copilot"], model: "gpt-6.2-astra", variant: "max" },
-      { providers: ["openai", "chatgpt-subscription", "opencode"], model: "gpt-6.2-astra", variant: "max" },
-      { providers: ["openai", "chatgpt-subscription"], model: "gpt-5.6-sol", variant: "max" },
-      { providers: ["github-copilot"], model: "gpt-5.6-sol", variant: "max" },
-      { providers: ["openai", "chatgpt-subscription", "opencode"], model: "gpt-5.6-sol", variant: "max" },
-    ])
-  })
-
-  test("ultrabrain keeps gpt-5.6-sol max on every fallback rung", () => {
-    // given
-    const requirement = CATEGORY_MODEL_REQUIREMENTS["ultrabrain"]
-
-    // when
-    const chain = requirement.fallbackChain.filter(({ model }) => model === "gpt-5.6-sol")
-
-    // then
-    expect(chain).toEqual([
-      {
-        providers: ["openai", "chatgpt-subscription"],
-        model: "gpt-5.6-sol",
-        variant: "max",
-      },
-      {
-        providers: ["github-copilot"],
-        model: "gpt-5.6-sol",
-        variant: "max",
-      },
-      {
-        providers: ["openai", "chatgpt-subscription", "opencode"],
-        model: "gpt-5.6-sol",
-        variant: "max",
-      },
-    ])
-  })
-
-  test("deep-high routes GPT-6 Astra high only", () => {
-    expect(CATEGORY_MODEL_REQUIREMENTS["deep-high"].fallbackChain).toEqual([
-      {
-        providers: ["openai", "chatgpt-subscription", "github-copilot", "opencode"],
-        model: "gpt-6.2-astra",
-        variant: "high",
-      },
-    ])
-  })
-
-  test("deep-low leads with gpt-6.2-sol then gpt-6.2-sol-fast medium on the OpenAI lanes, keeps the gpt-5.6-sol rungs behind them, and carries no GPT-6 Sol rung", () => {
-    // given
-    const requirement = CATEGORY_MODEL_REQUIREMENTS["deep-low"]
-
-    // when
-    const chain = requirement.fallbackChain
-
-    // then
-    expect(chain).toEqual([
-      { providers: ["openai", "chatgpt-subscription"], model: "gpt-6.2-sol", variant: "medium" },
-      { providers: ["openai", "chatgpt-subscription"], model: "gpt-6.2-sol-fast", variant: "medium" },
-      {
-        providers: ["openai", "chatgpt-subscription", "github-copilot", "opencode"],
-        model: "gpt-5.6-sol",
-        variant: "medium",
-      },
-      { providers: ["openai", "chatgpt-subscription"], model: "gpt-5.6-sol-fast", variant: "medium" },
-    ])
-  })
-
-  test("neither deep lane carries the other lane's model, so they never substitute each other", () => {
-    expect(CATEGORY_MODEL_REQUIREMENTS["deep-low"].fallbackChain.map(({ model }) => model)).toEqual([
-      "gpt-6.2-sol",
-      "gpt-6.2-sol-fast",
-      "gpt-5.6-sol",
-      "gpt-5.6-sol-fast",
-    ])
-    expect(CATEGORY_MODEL_REQUIREMENTS["deep-high"].fallbackChain.map(({ model }) => model)).toEqual(["gpt-6.2-astra"])
-=======
   // #14155: each GPT deep lane is one exact-model rung with no older, Fast or other-family fallback, and
   // stays unavailable (requiresAnyModel) when no listed provider serves it.
   test.each([
@@ -95,7 +17,6 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
 
     expect(requirement.fallbackChain).toEqual([{ providers, model, variant }])
     expect(requirement.requiresAnyModel).toBe(true)
->>>>>>> origin/dev
   })
 
   test("visual-engineering starts with Argon low (#10187)", () => {
@@ -228,14 +149,11 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
       {
         providers: ["openai", "chatgpt-subscription"],
         model: "gpt-6.2-sol",
-<<<<<<< HEAD
-=======
         variant: "medium",
       },
       {
         providers: ["openai", "chatgpt-subscription"],
         model: "gpt-6.1-sol",
->>>>>>> origin/dev
         variant: "medium",
       },
       {

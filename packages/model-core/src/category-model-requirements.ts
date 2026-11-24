@@ -48,11 +48,6 @@ export const CATEGORY_MODEL_REQUIREMENTS: Record<string, ModelRequirement> = {
   "deep-low": {
     requiresAnyModel: true,
     fallbackChain: [
-<<<<<<< HEAD
-      // The current Sol leads on the OpenAI lanes (plain, then the Fast tier). GPT-5.6 Sol stays
-      // behind it so Copilot, OpenCode Zen and a registry without the current Sol still resolve.
-=======
->>>>>>> origin/dev
       { providers: ["openai", "chatgpt-subscription"], model: LATEST_MODEL_BY_FAMILY.gptSol, variant: "medium" },
     ],
   },

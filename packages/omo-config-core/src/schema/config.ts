@@ -16,6 +16,7 @@ import { OmoTeamsConfigLayerSchema, OmoTeamsConfigSchema } from "./team"
 import { OmoTelemetrySettingsLayerSchema, OmoTelemetrySettingsSchema } from "./telemetry"
 import { OmoDeviceServiceSettingsLayerSchema, OmoDeviceServiceSettingsSchema } from "./device-service"
 import { OmoFormatOnMutationLayerSchema, OmoFormatOnMutationSchema } from "./format-on-mutation"
+import { OmoFilePickerSettingsLayerSchema, OmoFilePickerSettingsSchema } from "./file-picker"
 import { OmoProvenanceSettingsSchema } from "./provenance"
 import { OmoSessionWakeSettingsSchema } from "./session-wake"
 import { OmoOperatorAlertsSettingsSchema } from "./operator-alerts"
@@ -44,6 +45,7 @@ export const OmoTypedHarnessConfigSchema = z
     session_wake: OmoSessionWakeSettingsSchema.optional(),
     operator_alerts: OmoOperatorAlertsSettingsSchema.optional(),
     formatOnMutation: OmoFormatOnMutationLayerSchema.optional(),
+    file_picker: OmoFilePickerSettingsLayerSchema.optional(),
     categories: OmoCategoriesConfigSchema.optional(),
     agents: OmoAgentsConfigSchema.optional(),
     git_master: OmoGitMasterSettingsLayerSchema.optional(),
@@ -70,6 +72,7 @@ export const OmoConfigProfileSchema = z
     session_wake: OmoSessionWakeSettingsSchema.optional(),
     operator_alerts: OmoOperatorAlertsSettingsSchema.optional(),
     formatOnMutation: OmoFormatOnMutationLayerSchema.optional(),
+    file_picker: OmoFilePickerSettingsLayerSchema.optional(),
     categories: OmoCategoriesConfigSchema.optional(),
     agents: OmoAgentsConfigSchema.optional(),
     git_master: OmoGitMasterSettingsLayerSchema.optional(),
@@ -100,6 +103,7 @@ export const OmoConfigSchema = z
     session_wake: OmoSessionWakeSettingsSchema.optional(),
     operator_alerts: OmoOperatorAlertsSettingsSchema.optional(),
     formatOnMutation: OmoFormatOnMutationSchema.optional(),
+    file_picker: OmoFilePickerSettingsSchema.optional(),
     $schema: z.string().optional(),
     categories: OmoCategoriesConfigSchema.optional(),
     agents: OmoAgentsConfigSchema.optional(),
@@ -134,6 +138,7 @@ export const OmoConfigLayerSchema = z
     session_wake: OmoSessionWakeSettingsSchema.optional(),
     operator_alerts: OmoOperatorAlertsSettingsSchema.optional(),
     formatOnMutation: OmoFormatOnMutationLayerSchema.optional(),
+    file_picker: OmoFilePickerSettingsLayerSchema.optional(),
     $schema: z.string().optional(),
     categories: OmoCategoriesConfigSchema.optional(),
     agents: OmoAgentsConfigSchema.optional(),

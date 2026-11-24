@@ -8,15 +8,9 @@ import { root } from "./aggregate-plugin-fixture.mjs"
 test("#given bundled model catalog #when inspected #then default verifier and worker roles are pinned", async () => {
   const catalog = JSON.parse(await readFile(join(root, "model-catalog.json"), "utf8"))
 
-<<<<<<< HEAD
-  assert.equal(catalog.version, "2026-11-18.gpt-6.2-astra-1050k-high")
-  assert.equal(catalog.current.model, "gpt-6.2-astra")
-  assert.equal(catalog.current.model_context_window, 1050000)
-=======
   assert.equal(catalog.version, "2026-11-20.gpt-6.2-astra-600k-high")
   assert.equal(catalog.current.model, "gpt-6.2-astra")
   assert.equal(catalog.current.model_context_window, 600000)
->>>>>>> origin/dev
   assert.equal(catalog.current.model_reasoning_effort, "high")
   assert.equal(catalog.current.plan_mode_reasoning_effort, "xhigh")
   assert.deepEqual(catalog.roles.default, catalog.current)
@@ -29,20 +23,7 @@ test("#given bundled model catalog #when inspected #then default verifier and wo
     model_reasoning_effort: "high",
   })
   assert.deepEqual(catalog.managedProfiles.at(-1), {
-<<<<<<< HEAD
-    version: "legacy.2026-09-08.gpt-6-astra-600k-high",
-    match: {
-      model: "gpt-6-astra",
-      model_context_window: 600000,
-      model_reasoning_effort: "high",
-      plan_mode_reasoning_effort: "xhigh",
-    },
-  })
-  assert.deepEqual(catalog.managedProfiles.at(-2), {
-    version: "legacy.gpt-5.6-sol-650k-high",
-=======
     version: "legacy.gpt-6-astra-600k-high",
->>>>>>> origin/dev
     match: {
       model: "gpt-6-astra",
       model_context_window: 600000,

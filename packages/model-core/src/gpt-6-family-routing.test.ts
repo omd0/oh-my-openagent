@@ -4,23 +4,6 @@ import { getBuiltInRequirementModelIDs } from "./model-capability-guardrails"
 import { AGENT_MODEL_REQUIREMENTS, CATEGORY_MODEL_REQUIREMENTS } from "./model-requirements"
 
 describe("GPT-6 family routing", () => {
-<<<<<<< HEAD
-  test("deep-low leads with gpt-6.2-sol then gpt-6.2-sol-fast medium on the OpenAI lanes, then gpt-5.6-sol medium on every lane, then gpt-5.6-sol-fast, and nothing after it", () => {
-    expect(CATEGORY_MODEL_REQUIREMENTS["deep-low"].fallbackChain).toEqual([
-      { providers: ["openai", "chatgpt-subscription"], model: "gpt-6.2-sol", variant: "medium" },
-      { providers: ["openai", "chatgpt-subscription"], model: "gpt-6.2-sol-fast", variant: "medium" },
-      { providers: GPT_PROVIDERS, model: "gpt-5.6-sol", variant: "medium" },
-      { providers: ["openai", "chatgpt-subscription"], model: "gpt-5.6-sol-fast", variant: "medium" },
-    ])
-  })
-
-  test("deep-high still carries only Astra, so neither deep lane borrows the other's model", () => {
-    expect(CATEGORY_MODEL_REQUIREMENTS["deep-high"].fallbackChain.map(({ model }) => model)).toEqual(["gpt-6.2-astra"])
-    expect(CATEGORY_MODEL_REQUIREMENTS["deep-low"].fallbackChain.map(({ model }) => model)).not.toContain("gpt-6.2-astra")
-  })
-
-=======
->>>>>>> origin/dev
   test("quick leads with gpt-6-luna-fast low", () => {
     expect(CATEGORY_MODEL_REQUIREMENTS["quick"].fallbackChain[0]).toEqual({
       providers: ["openai", "chatgpt-subscription"],

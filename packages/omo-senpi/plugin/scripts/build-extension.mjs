@@ -38,6 +38,7 @@ if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.a
     supervisorOutputPath,
     advisorRuntimeOutputPath,
     sidePanelRuntimeOutputPath,
+    filePickerRuntimeOutputPath,
     computerUseOutputPath,
     gatewayStoreWorkerOutputPath,
     threadSdkOutputPath,
@@ -57,7 +58,7 @@ if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.a
   } else {
     await buildExtension()
     console.log(
-      `Built omo-senpi extensions: ${outputPath}, ${taskOutputPath}, ${memberOutputPath}, ${supervisorOutputPath}, ${advisorRuntimeOutputPath}, ${sidePanelRuntimeOutputPath}, ${computerUseOutputPath}, ${gatewayStoreWorkerOutputPath}, ${threadSdkOutputPath}`,
+      `Built omo-senpi extensions: ${outputPath}, ${taskOutputPath}, ${memberOutputPath}, ${supervisorOutputPath}, ${advisorRuntimeOutputPath}, ${sidePanelRuntimeOutputPath}, ${computerUseOutputPath}, ${filePickerRuntimeOutputPath}, ${gatewayStoreWorkerOutputPath}, ${threadSdkOutputPath}`,
     )
   }
 }

@@ -36,6 +36,7 @@ export function outputPathsIn(root) {
     desktopToolkitOutputPath: join(root, "omo-desktop-toolkit.js"),
     claimReceiptOutputPath: join(root, "omo-claim-receipt.js"),
     computerUseOutputPath: join(root, "omo-computer-use.js"),
+    filePickerRuntimeOutputPath: join(root, "omo-file-picker.js"),
     gatewayStoreWorkerOutputPath: join(root, "gateway-store-worker.mjs"),
     threadSdkOutputPath: join(root, "runtime", "thread-sdk", "sdk.js"),
   }

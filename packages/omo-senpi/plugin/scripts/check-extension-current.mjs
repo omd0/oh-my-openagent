@@ -40,6 +40,7 @@ export async function checkExtensionCurrent(options = {}) {
     omoSdkOutput,
     rollbackRuntimeOutput,
     computerUseOutput,
+    filePickerRuntimeOutput,
     memoryDoctorOutput,
     memoryMemfsOutput,
     memoryPalaceOutput,
@@ -132,6 +133,9 @@ export async function checkExtensionCurrent(options = {}) {
   if (currentClaimReceipt === undefined) return { ok: false, reason: "missing-output", output: claimReceiptOutput }
   const currentComputerUse = await readBuiltEntry(computerUseOutput)
   if (currentComputerUse === undefined) return { ok: false, reason: "missing-output", output: computerUseOutput }
+  const currentFilePickerRuntime = await readBuiltEntry(filePickerRuntimeOutput)
+  if (currentFilePickerRuntime === undefined)
+    return { ok: false, reason: "missing-output", output: filePickerRuntimeOutput }
   const computerRunWorkerOutput = join(dirname(computerUseOutput), COMPUTER_RUN_WORKER_NAME)
   const currentComputerRunWorker = await readBuiltEntry(computerRunWorkerOutput)
   if (currentComputerRunWorker === undefined)
@@ -181,6 +185,7 @@ export async function checkExtensionCurrent(options = {}) {
     desktopToolkitOutputPath: join(tempRoot, "omo-desktop-toolkit.js"),
     claimReceiptOutputPath: join(tempRoot, "omo-claim-receipt.js"),
     computerUseOutputPath: join(tempRoot, "omo-computer-use.js"),
+    filePickerRuntimeOutputPath: join(tempRoot, "omo-file-picker.js"),
     gatewayStoreWorkerOutputPath: join(tempRoot, GATEWAY_STORE_WORKER_NAME),
     threadSdkOutputPath: join(tempRoot, THREAD_SDK_RELATIVE_PATH),
   }
@@ -216,6 +221,7 @@ export async function checkExtensionCurrent(options = {}) {
       [currentDesktopToolkit, expected.desktopToolkitOutputPath, desktopToolkitOutput],
       [currentClaimReceipt, expected.claimReceiptOutputPath, claimReceiptOutput],
       [currentComputerUse, expected.computerUseOutputPath, computerUseOutput],
+      [currentFilePickerRuntime, expected.filePickerRuntimeOutputPath, filePickerRuntimeOutput],
       [
         currentComputerRunWorker,
         join(dirname(expected.computerUseOutputPath), COMPUTER_RUN_WORKER_NAME),
@@ -245,6 +251,7 @@ export async function checkExtensionCurrent(options = {}) {
       advisorRuntimeOutput,
       sidePanelRuntimeOutput,
       computerUseOutput,
+      filePickerRuntimeOutput,
       gatewayStoreWorkerOutput,
       threadSdkOutput,
       wakeOutput,

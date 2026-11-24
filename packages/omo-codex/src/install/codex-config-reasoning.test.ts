@@ -89,14 +89,9 @@ describe("codex-config-reasoning", () => {
     // then
     const content = await readFile(configPath, "utf8")
     expect(content).toContain('model = "gpt-6.2-astra"')
-<<<<<<< HEAD
-    expect(content).toContain("model_context_window = 1050000")
-=======
     expect(content).toContain("model_context_window = 600000")
->>>>>>> origin/dev
     expect(content).toContain('model_reasoning_effort = "high"')
     expect(content).toContain('plan_mode_reasoning_effort = "xhigh"')
-    expect(content).not.toContain("model_catalog_json =")
   })
 
   test("#given existing model and reasoning config #when updating config #then replaces stale defaults without duplicate keys", async () => {
@@ -133,11 +128,7 @@ describe("codex-config-reasoning", () => {
     expect(content.match(/^model_reasoning_effort\s*=/gm)).toHaveLength(1)
     expect(content.match(/^plan_mode_reasoning_effort\s*=/gm)).toHaveLength(1)
     expect(content).toContain('model = "gpt-6.2-astra"')
-<<<<<<< HEAD
-    expect(content).toContain("model_context_window = 1050000")
-=======
     expect(content).toContain("model_context_window = 600000")
->>>>>>> origin/dev
     expect(content).toContain('model_reasoning_effort = "high"')
     expect(content).toContain('plan_mode_reasoning_effort = "xhigh"')
     expect(content).not.toContain("model_context_window = 272000")
@@ -158,7 +149,6 @@ describe("codex-config-reasoning", () => {
         "model_context_window = 123456",
         'model_reasoning_effort = "medium"',
         'plan_mode_reasoning_effort = "medium"',
-        'model_catalog_json = "models.json"',
         "",
       ].join("\n"),
     )
@@ -178,7 +168,6 @@ describe("codex-config-reasoning", () => {
     expect(content).toContain("model_context_window = 123456")
     expect(content).toContain('model_reasoning_effort = "medium"')
     expect(content).toContain('plan_mode_reasoning_effort = "medium"')
-    expect(content).toContain('model_catalog_json = "models.json"')
   })
 
   // The shipped plugin/model-catalog.json and the in-code fallback must agree on which GPT-6 Astra

@@ -5,6 +5,7 @@
   "private": true,
   "description": "Senpi harness adapter for oh-my-openagent.",
   "imports": {
+    "#omo-file-picker-runtime": "./src/components/file-picker/runtime.ts",
     "#omo-desktop-toolkit-runtime": "./src/components/desktop-toolkit/runtime.ts",
     "#omo-telemetry-posthog-runtime": "./src/components/telemetry/posthog-runtime.ts",
     "#omo-telemetry-otlp-runtime": "./src/components/telemetry/otlp-runtime.ts",

@@ -2,11 +2,7 @@
 // @bun
 
 // packages/omo-senpi/src/install/cli-local.ts
-<<<<<<< HEAD
-import { existsSync as existsSync3, readFileSync as readFileSync2 } from "fs";
-=======
 import { existsSync as existsSync3, readFileSync } from "fs";
->>>>>>> origin/dev
 import { dirname as dirname5, join as join6, resolve as resolve5 } from "path";
 import { fileURLToPath as fileURLToPath2 } from "url";
 
@@ -95,11 +91,7 @@ function launcherCmdOwnership(path, io = { readPrefix }) {
 }
 
 // packages/omo-senpi/src/install/local-launcher.ts
-<<<<<<< HEAD
-import { chmodSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-=======
 import { chmodSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
->>>>>>> origin/dev
 import { homedir as homedir2 } from "node:os";
 import { dirname, join as join2, resolve as resolve2 } from "node:path";
 
@@ -107,19 +99,11 @@ import { dirname, join as join2, resolve as resolve2 } from "node:path";
 var OMO_BRAND_LOGO = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDI0IDEwMjQiPgogIDxwYXRoIGZpbGw9IiNGNEY0RjQiIGQ9Ik01MTIuMDAgMTAwLjUwIEM1OTEuMTMgMTAwLjUwIDY5Ny42NiAxMDIuMzcgNzQ5LjM5IDEwNi4yNyBDODAxLjExIDExMC4xNyA4MDIuMzUgMTE1Ljg0IDgyMi4zNSAxMjMuOTAgQzg0Mi4zNCAxMzEuOTYgODU2LjQwIDE0MS42OCA4NjkuMzYgMTU0LjY0IEM4ODIuMzIgMTY3LjYwIDg5Mi4wNCAxODEuNjYgOTAwLjEwIDIwMS42NSBDOTA4LjE2IDIyMS42NSA5MTMuODMgMjIyLjg5IDkxNy43MyAyNzQuNjEgQzkyMS42MyAzMjYuMzQgOTIzLjUwIDQzMi44NyA5MjMuNTAgNTEyLjAwIEM5MjMuNTAgNTkxLjEzIDkyMS42MyA2OTcuNjYgOTE3LjczIDc0OS4zOSBDOTEzLjgzIDgwMS4xMSA5MDguMTYgODAyLjM1IDkwMC4xMCA4MjIuMzUgQzg5Mi4wNCA4NDIuMzQgODgyLjMyIDg1Ni40MCA4NjkuMzYgODY5LjM2IEM4NTYuNDAgODgyLjMyIDg0Mi4zNCA4OTIuMDQgODIyLjM1IDkwMC4xMCBDODAyLjM1IDkwOC4xNiA4MDEuMTEgOTEzLjgzIDc0OS4zOSA5MTcuNzMgQzY5Ny42NiA5MjEuNjMgNTkxLjEzIDkyMy41MCA1MTIuMDAgOTIzLjUwIEM0MzIuODcgOTIzLjUwIDMyNi4zNCA5MjEuNjMgMjc0LjYxIDkxNy43MyBDMjIyLjg5IDkxMy44MyAyMjEuNjUgOTA4LjE2IDIwMS42NSA5MDAuMTAgQzE4MS42NiA4OTIuMDQgMTY3LjYwIDg4Mi4zMiAxNTQuNjQgODY5LjM2IEMxNDEuNjggODU2LjQwIDEzMS45NiA4NDIuMzQgMTIzLjkwIDgyMi4zNSBDMTE1Ljg0IDgwMi4zNSAxMTAuMTcgODAxLjExIDEwNi4yNyA3NDkuMzkgQzEwMi4zNyA2OTcuNjYgMTAwLjUwIDU5MS4xMyAxMDAuNTAgNTEyLjAwIEMxMDAuNTAgNDMyLjg3IDEwMi4zNyAzMjYuMzQgMTA2LjI3IDI3NC42MSBDMTEwLjE3IDIyMi44OSAxMTUuODQgMjIxLjY1IDEyMy45MCAyMDEuNjUgQzEzMS45NiAxODEuNjYgMTQxLjY4IDE2Ny42MCAxNTQuNjQgMTU0LjY0IEMxNjcuNjAgMTQxLjY4IDE4MS42NiAxMzEuOTYgMjAxLjY1IDEyMy45MCBDMjIxLjY1IDExNS44NCAyMjIuODkgMTEwLjE3IDI3NC42MSAxMDYuMjcgQzMyNi4zNCAxMDIuMzcgNDMyLjg3IDEwMC41MCA1MTIuMDAgMTAwLjUwWiIvPgogIDxnIHRyYW5zZm9ybT0ic2NhbGUoMC41KSI+CiAgICA8ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSgwLjAwMDAwMCwyMDQ4LjAwMDAwMCkgc2NhbGUoMC4wNTAwMDAsLTAuMDUwMDAwKSI+CiAgICAgIDxwYXRoIGZpbGw9IiMwNDE2MTciIGZpbGwtcnVsZT0iZXZlbm9kZCIgZD0iTTkyNzAgMzIxNjcgYy0zMDkgLTY0IC00NTYgLTE1MiAtNjIxIC0zNzMgLTU2MiAtNzQ4IC03NzYgLTI2ODkKLTU0NyAtNDk4NCAxMTggLTExODcgMzI1IC0yNjAwIDU3MCAtMzg5MCAxNDMgLTc1MyAxNTIgLTY1MyAtMTI4IC0xMzgwIC00MDMKLTEwNDUgLTY0MyAtMTg3MyAtODEyIC0yODAwIC04NTMgLTQ2ODkgMTk3OSAtNzk4NiA3ODU4IC05MTQ4IDExNDAgLTIyNSAyNTE0Ci0zOTcgMzIwMiAtNDAwIGwzNjEgLTIgNzkgNTUgYzI2NCAxODIgMjEwIDY0MiAtMTExIDk0MiAtMzg3IDM2MiAtOTUwIDUzMgotMjgwMSA4NDUgLTMwMDQgNTA3IC00MjQ5IDk2NSAtNTUyMCAyMDMwIC0xMzU4IDExMzggLTIwMTIgMjg3OCAtMTgwOSA0ODEwCjU0NSA1MTk1IDY2MTcgODcyNiAxMzUyOSA3ODY2IDU1MDYgLTY4NCA5NDgwIC00MjU1IDk0ODAgLTg1MTggMCAtMjYwNyAtMTQ2MgotNDUyMiAtNDE1NyAtNTQ0OCAtOTI3IC0zMTggLTE1MzQgLTQ1OSAtMzIwMyAtNzQwIC0xODUxIC0zMTMgLTI0MTQgLTQ4MwotMjgwMSAtODQ1IC0zMjEgLTMwMCAtMzc1IC03NjAgLTExMSAtOTQyIGw3OSAtNTUgMzYxIDIgYzY4OCAzIDIwNjIgMTc1IDMyMDIKNDAwIDU4NzkgMTE2MiA4NzExIDQ0NTkgNzg1OCA5MTQ4IC0xNjkgOTI3IC00MDkgMTc1NSAtODEyIDI4MDAgLTI4MCA3MjcKLTI3MSA2MjcgLTEyOCAxMzgwIDI0NSAxMjkwIDQ1MiAyNzAzIDU3MCAzODkwIDI3MSAyNzIwIC03NyA0ODYxIC04NTUgNTI1OQotNzU4IDM4OCAtMjMxMCAtMjM4IC01MDIxIC0yMDI0IC04NjggLTU3MSAtNzY0IC01NTcgLTE0ODkgLTIxMSAtMzI3MSAxNTU4Ci02NzU1IDE1NTggLTEwMDI2IDAgLTcyNSAtMzQ2IC02MjEgLTM2MCAtMTQ4OSAyMTEgLTIzNzEgMTU2MiAtMzk1OSAyMjc4Ci00NzA4IDIxMjJ6IG00MTMyIC0zMzQ1IGMxNzUgLTE3NSAxMjQgLTI2OCAtNDA5IC03MzkgLTEwMjggLTkxMCAtMTk5NSAtMjA1MwotMjcxMyAtMzIwOSAtOTcgLTE1NiAtMjAwIC0zMTggLTIyOCAtMzU5IC0yMjEgLTMyMSAtNjQ2IC03NiAtNDY5IDI3MCAxNTMKMzAxIDg4MyAxMzM0IDEzODggMTk2NSA1NzggNzIzIDE0NjYgMTYxNCAyMDI5IDIwMzUgMTkxIDE0MiAyODggMTUxIDQwMiAzN3oKbTE0NTA3IC0xIGM0OTYgLTM0MSAxNDgyIC0xMzIzIDIwODAgLTIwNzEgNTA1IC02MzEgMTIzNSAtMTY2NCAxMzg4IC0xOTY1CjE3NyAtMzQ2IC0yNDggLTU5MSAtNDY5IC0yNzAgLTI4IDQxIC0xMzEgMjAzIC0yMjggMzU5IC03MTggMTE1NiAtMTY4NSAyMjk5Ci0yNzEzIDMyMDkgLTUzNSA0NzMgLTU4NSA1NjQgLTQwNyA3NDIgMTAwIDEwMCAxOTkgOTkgMzQ5IC00eiBNMTk5MTAgMjUzMDggYy00MDM5IC0yMDUgLTcyMTIgLTE2NjYgLTkwODYgLTQxODQgLTE4NDAgLTI0NzMgLTE3NTMKLTU3OTQgMTk2IC03NTQwIDExNjEgLTEwNDAgMjQ0NyAtMTUxOCA1NDIwIC0yMDE1IDEzNzQgLTIyOSAxOTk4IC0zODAgMjQ1NgotNTkxIDc1NCAtMzQ4IDExNjMgLTEwMDAgMTAzMyAtMTY1MCAtMTAgLTQ5IC0xIC03MiA0NyAtMTI0IGw2MCAtNjQgNDQ0IDAKNDQ0IDAgNjAgNjQgYzQ4IDUyIDU3IDc1IDQ3IDEyNCAtMTMwIDY1MCAyNzkgMTMwMiAxMDMzIDE2NTAgNDU4IDIxMSAxMDgyCjM2MiAyNDU2IDU5MSAyOTczIDQ5NyA0MjU5IDk3NSA1NDIwIDIwMTUgMjA4NCAxODY2IDIwMjYgNTM3NCAtMTMxIDc5NTYKLTIwNjMgMjQ2OSAtNTk5NSAzOTY2IC05ODk5IDM3Njh6IG0tNDY0NCAtNDM3NCBjMTM1NiAtMzYwIDIyNzIgLTE5MDkgMTk5OAotMzM3OCAtNDI2IC0yMjc4IC0yODU2IC0zMTQ0IC00NDI0IC0xNTc2IC0xNDk3IDE0OTYgLTkyNCA0MjE4IDEwMzEgNDg5OSAzOTMKMTM3IDk5NiAxNjEgMTM5NSA1NXogbTExNDgwIDM1IGMxNDkxIC0yNjEgMjUwNCAtMTkyMSAyMTU0IC0zNTMyIC00ODcgLTIyNDcKLTMxMDggLTMwMjQgLTQ1MjUgLTEzNDEgLTE3MTkgMjA0MiAtMTI5IDUzMTAgMjM3MSA0ODczeiBtLTY5NDggLTI5ODAgYzE3MgotNDAgMzQxIC0xMzMgNDk1IC0yNzMgOTUgLTg2IDE0MyAtMTE2IDE4NyAtMTE2IDQ0IDAgOTIgMzAgMTg3IDExNiA3MTggNjUwCjE3MTYgMTg4IDE4NTQgLTg2MCAzNSAtMjY3IDE4IC05NjggLTI1IC0xMDQ4IC0xMTkgLTIxOSAtMzUwIC0yNTEgLTQ5MSAtNjgKLTY4IDg5IC03MyAxMjQgLTg1IDY3MCAtMTMgNjIzIC0yNSA2NzUgLTIwMCA4MzggLTIxMiAxOTggLTUxNiAxOTkgLTczNSAyCi0xODAgLTE2MSAtMTkyIC0yMTIgLTIwNSAtODQwIC0xMiAtNTQ2IC0xNyAtNTgxIC04NSAtNjcwIC0xMjIgLTE1OSAtMzA4Ci0xNTkgLTQzMCAwIC02OCA4OSAtNzMgMTI0IC04NSA2NzAgLTEzIDYyOCAtMjUgNjc5IC0yMDUgODQwIC0yMTkgMTk3IC01MjMKMTk2IC03MzUgLTIgLTE3NSAtMTYzIC0xODcgLTIxNSAtMjAwIC04MzggLTEyIC01NDYgLTE3IC01ODEgLTg1IC02NzAgLTE0MQotMTgzIC0zNzIgLTE1MSAtNDkxIDY4IC03NCAxMzYgLTU0IDEwMzkgMzAgMTMzMiAxNzAgNTk0IDc1OCA5NzggMTMwNCA4NDl6IE0xNDM0MCAyMDI5MCBjLTE4NTggLTM3MiAtMjIzMCAtMzIyOCAtNTQ2IC00MTkxIDEyODAgLTczMiAyNzg2IDMzOAoyNzg2IDE5ODEgMCAxMzkxIC0xMDY4IDI0NDUgLTIyNDAgMjIxMHogTTI1OTkwIDIwMjkxIGMtMTczMyAtMzQzIC0yMjA4IC0yOTgxIC03MzIgLTQwNjkgMTI4NyAtOTQ5IDI5ODEgMTA4CjI5ODIgMTg2MCAwIDEzOTIgLTEwNzAgMjQ0MyAtMjI1MCAyMjA5eiIvPgogICAgPC9nPgogIDwvZz4KPC9zdmc+Cg==";
 
 // packages/omo-senpi/src/install/local-launcher.ts
-<<<<<<< HEAD
-var MARKER = "omo-local-launcher";
-var COMMANDS = ["omo", "pi"];
-=======
->>>>>>> origin/dev
 function localLauncherPath(homeDir = homedir2()) {
   return join2(homeDir, ".local", "bin", "omo");
 }
-function localCommandPath(command, homeDir) {
-  return join2(homeDir, ".local", "bin", command);
-}
-function localCommandCmdPath(command, homeDir) {
-  return join2(homeDir, ".local", "bin", `${command}.cmd`);
+function localLauncherCmdPath(homeDir = homedir2()) {
+  return join2(homeDir, ".local", "bin", "omo.cmd");
 }
 function releaseChannel(version) {
   return version !== undefined && version.includes("-") ? "beta" : "latest";
@@ -192,35 +176,6 @@ child.on("close", (code, signal) => {
 `;
 }
 function installLocalLauncher(options) {
-<<<<<<< HEAD
-  const homeDir = options.homeDir ?? homedir2();
-  const windows = (options.platform ?? process.platform) === "win32";
-  let omoInstalled = false;
-  for (const command of COMMANDS) {
-    const path = localCommandPath(command, homeDir);
-    const commandOwned = isOwnedCommand(path);
-    if (!canWriteOwnedCommand(path)) {
-      console.warn(`omo: refusing to replace foreign local launcher at ${path}`);
-      continue;
-    }
-    const cmdPath = localCommandCmdPath(command, homeDir);
-    const legacyOmoWrapperOwned = command === "omo" && commandOwned && isLegacyOmoCmdWrapper(cmdPath);
-    if (windows && !canWriteOwnedCommand(cmdPath, true) && !legacyOmoWrapperOwned) {
-      console.warn(`omo: refusing to replace foreign local launcher wrapper at ${cmdPath}`);
-      continue;
-    }
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, renderLocalLauncher(options));
-    chmodSync(path, 493);
-    if (windows) {
-      writeFileSync(cmdPath, `@echo off\r
-rem ${MARKER}\r
-node "%~dp0${command}" %*\r
-`);
-    }
-    if (command === "omo")
-      omoInstalled = true;
-=======
   const path = localLauncherPath(options.homeDir);
   if (launcherOwnership(path).kind === "foreign")
     return;
@@ -231,60 +186,10 @@ node "%~dp0${command}" %*\r
     const cmd = localLauncherCmdPath(options.homeDir);
     if (launcherCmdOwnership(cmd).kind !== "foreign")
       writeFileSync(cmd, LAUNCHER_CMD_SHIM);
->>>>>>> origin/dev
   }
-  return omoInstalled ? localLauncherPath(homeDir) : undefined;
+  return path;
 }
 function uninstallLocalLauncher(homeDir = homedir2()) {
-<<<<<<< HEAD
-  let removed = false;
-  for (const command of COMMANDS) {
-    const path = resolve2(localCommandPath(command, homeDir));
-    const commandOwned = isOwnedCommand(path);
-    const cmdPath = localCommandCmdPath(command, homeDir);
-    const wrapperOwned = isOwnedCommand(cmdPath, true) || command === "omo" && commandOwned && isLegacyOmoCmdWrapper(cmdPath);
-    if (commandOwned) {
-      rmSync(path);
-      removed = true;
-    }
-    if (wrapperOwned) {
-      rmSync(cmdPath);
-      removed = true;
-    }
-  }
-  return removed;
-}
-function canWriteOwnedCommand(path, wrapper = false) {
-  try {
-    const stats = lstatSync(path);
-    return stats.isFile() && isOwnedCommand(path, wrapper);
-  } catch (error) {
-    if (error.code === "ENOENT")
-      return true;
-    return false;
-  }
-}
-function isLegacyOmoCmdWrapper(path) {
-  try {
-    const stats = lstatSync(path);
-    return stats.isFile() && readFileSync(path, "utf8") === `@echo off\r
-node "%~dp0omo" %*\r
-`;
-  } catch {
-    return false;
-  }
-}
-function isOwnedCommand(path, wrapper = false) {
-  try {
-    const stats = lstatSync(path);
-    if (!stats.isFile())
-      return false;
-    const source = readFileSync(path, "utf8");
-    return wrapper ? source.includes(`rem ${MARKER}`) : source.includes(MARKER);
-  } catch {
-    return false;
-  }
-=======
   const path = resolve2(localLauncherPath(homeDir));
   if (launcherOwnership(path).kind !== "owned")
     return false;
@@ -293,7 +198,6 @@ function isOwnedCommand(path, wrapper = false) {
   if (launcherCmdOwnership(cmd).kind === "owned")
     rmSync(cmd);
   return true;
->>>>>>> origin/dev
 }
 
 // packages/omo-senpi/src/install/plugin-artifacts.ts
@@ -454,6 +358,7 @@ var REQUIRED_PLUGIN_ARTIFACTS = [
   join4("extensions", "omo-feedback.js"),
   join4("extensions", "omo-desktop-toolkit.js"),
   join4("extensions", "omo-claim-receipt.js"),
+  join4("extensions", "omo-file-picker.js"),
   join4("extensions", "assets.generated.json"),
   join4("extensions", "omo-member.js"),
   join4("extensions", "memory-run-supervisor.mjs"),
@@ -684,8 +589,6 @@ function findRepoRoot(importerDir) {
 }
 function fileExistsSync(path) {
   return existsSync2(path);
-<<<<<<< HEAD
-=======
 }
 function leftAloneReport(homeDir, platform) {
   const candidates = [
@@ -710,7 +613,6 @@ function leftAloneReport(homeDir, platform) {
     }
   ] : []);
   return leftAlone.length === 0 ? {} : { launchersLeftAlone: leftAlone };
->>>>>>> origin/dev
 }
 
 // packages/omo-senpi/src/install/cli-local.ts

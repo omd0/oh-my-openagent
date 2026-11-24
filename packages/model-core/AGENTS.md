@@ -1,16 +1,12 @@
 # model-core - Model Resolution (Core)
 
-**Generated:** 2026-11-17
+**Generated:** 2026-08-24 (f3642fcda; prior 2026-08-10 38d268995)
 
 ## OVERVIEW
 
 Harness-neutral model resolution core (`@oh-my-opencode/model-core`). Resolves which model an agent or category should use via a prioritized pipeline: override, category default, user fallback, hardcoded fallback chain, system default. Consumed by `omo-opencode` (Ultimate adapter shims), `delegate-core` (task delegation), `claude-code-compat-core` (Claude Code model normalization), `skills-loader-core` (model sanitization), and `prompts-core` (variant resolution). The `ProviderCache` interface is the dependency-injection seam for connected-provider and model-metadata lookups.
 
-**Why here:** score 15; distinct shared model-policy boundary with 82 TypeScript files and measured cross-package consumers.
-
-## WHERE TO LOOK
-
-File paths in this table are relative to `src/`.
+## KEY FILES
 
 | File | Role |
 |------|------|
@@ -19,12 +15,7 @@ File paths in this table are relative to `src/`.
 | `provider-cache.ts` | `ProviderCache` DI interface: `readConnectedProvidersCache()`, `findProviderModelMetadata()` |
 | `model-availability.ts` | `fuzzyMatchModel()` - exact, then exact model-ID, then shortest **substring** match against `availableModels` (not prefix) |
 | `agent-model-requirements.ts` | Hardcoded `AGENT_MODEL_REQUIREMENTS` fallback chains (11 agents) |
-<<<<<<< HEAD
-| `category-model-requirements.ts` | Hardcoded `CATEGORY_MODEL_REQUIREMENTS` fallback chains (8 categories); current family IDs come from `latest-models.ts` |
-| `latest-models.ts` | Import-free `LATEST_MODEL_BY_FAMILY`; separately exported as `@oh-my-opencode/model-core/latest-models` |
-=======
 | `category-model-requirements.ts` | Hardcoded `CATEGORY_MODEL_REQUIREMENTS` fallback chains (8 categories), including the exact GPT-6.2 Astra (`ultrabrain` max, `deep-high` high) and GPT-6.2 Sol (`deep-low` medium) lanes, which carry no fallback model |
->>>>>>> origin/dev
 | `provider-model-id-transform.ts` | Provider-specific ID transforms (Vercel sub-provider inference, Claude version dots, Gemini preview suffixes) |
 | `model-capabilities/index.ts` | `getModelCapabilities()` - 4-source priority: runtime metadata -> runtime snapshot -> bundled snapshot -> heuristic family; alias canonicalization, suffix/prefix-tolerant lookup candidates, `resolutionMode` diagnostics |
 | `model-capability-heuristics.ts` | `HEURISTIC_MODEL_FAMILY_REGISTRY` + `detectHeuristicModelFamily()` - pattern-based family detection when no snapshot entry exists |
@@ -45,25 +36,15 @@ resolveModelPipeline(request, providerCache)
   6. systemDefaultModel → "system-default"
 ```
 
-## CONVENTIONS
+## NOTES
 
 - **ProviderCache is injected**, not imported. `omo-opencode` implements it with runtime cache state; `model-core` stays pure.
 - **Two resolution APIs:** `resolveModel()` for simple 3-tier fallback; `resolveModelWithFallback()` for full pipeline with `ExtendedModelResolutionInput`.
 - **`connected-providers-cache.ts`** exports no-op defaults. Adapters override via the `ProviderCache` parameter.
-- **42 source files and 40 co-located tests.** Package exports consume `src/index.ts` directly; package metadata declares `sideEffects: false`.
+- **40 source files** (73 TS incl. co-located tests). Barrel `index.ts` re-exports ~27 public modules. Tests co-located as `*.test.ts`.
 - **Capability lookup is suffix-tolerant.** Each model ID expands to up to 4 candidate forms (full, provider-prefix-stripped, variant-suffix-stripped, both), tried most-specific first, so `:high` / `(high)` requests still hit a provider's bare model entry.
 - **Snapshot lookup prefers provider-specific keys.** `anthropic/claude-opus-4.8` wins over a bare `claude-opus-4.8` entry when both exist.
 - **Metadata beats family caps.** In `resolveCompatibleModelSettings()`, family `reasoningEffortAliases` are applied first, then explicit `capabilities.*` metadata, then heuristic family caps; an unknown family drops the value with `unknown-model-family`.
+- **Deprecated routing is tested contract:** deprecated Haiku / GPT-nano entries must NOT route through the `opencode` provider (`model-requirements-deprecated-routing.test.ts`).
+- **Error classification is specific by design:** provider "forbidden" (retryable) is distinguished from unrelated filesystem/access "forbidden"; do not broaden substring matching in `model-error-classifier.ts`.
 - Parent: [`packages/AGENTS.md`](../AGENTS.md)
-
-## ANTI-PATTERNS
-
-- Deprecated Haiku / GPT-nano entries must NOT route through `opencode`; keep `model-requirements-deprecated-routing.test.ts` authoritative.
-- Do not broaden provider "forbidden" matching to filesystem/access failures in `model-error-classifier.ts`.
-- Fuzzy-match ties honor provider preference, then model-ID length; provider-name length must never decide the winner.
-- Do not duplicate latest-family IDs outside `latest-models.ts`; `script/latest-model-ids-audit.test.ts` guards literal copies.
-
-## COMMANDS
-
-From this package: `bun run typecheck` and `bun test src/*.test.ts`.
-From the repository root: `bun run test:model-capabilities` checks capability and doctor contracts.
